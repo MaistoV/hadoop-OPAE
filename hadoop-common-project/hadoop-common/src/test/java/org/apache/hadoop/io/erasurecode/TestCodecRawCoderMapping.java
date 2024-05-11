@@ -26,6 +26,9 @@ import org.apache.hadoop.io.erasurecode.rawcoder.RSLegacyRawEncoder;
 import org.apache.hadoop.io.erasurecode.rawcoder.RSRawDecoder;
 import org.apache.hadoop.io.erasurecode.rawcoder.RSRawEncoder;
 import org.apache.hadoop.io.erasurecode.rawcoder.RSRawErasureCoderFactory;
+import org.apache.hadoop.io.erasurecode.rawcoder.OpaeRSRawDecoder;
+import org.apache.hadoop.io.erasurecode.rawcoder.OpaeRSRawEncoder;
+import org.apache.hadoop.io.erasurecode.rawcoder.OpaeRSRawErasureCoderFactory;
 import org.apache.hadoop.io.erasurecode.rawcoder.RawErasureDecoder;
 import org.apache.hadoop.io.erasurecode.rawcoder.RawErasureEncoder;
 import org.apache.hadoop.io.erasurecode.rawcoder.XORRawDecoder;
@@ -40,6 +43,9 @@ import org.junit.Test;
 
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assume.assumeTrue;
+
+
+// TODO: add OPAE RS coder once integrated as coder, not as dedicated codec
 
 /**
  * Test the codec to raw coder mapping.

@@ -17,23 +17,35 @@
  */
 package org.apache.hadoop.io.erasurecode.rawcoder;
 
-import org.apache.hadoop.io.erasurecode.ErasureCodeNative;
-import org.junit.Assume;
-import org.junit.Before;
+import org.apache.hadoop.classification.InterfaceAudience;
+import org.apache.hadoop.io.erasurecode.ErasureCodeConstants;
+import org.apache.hadoop.io.erasurecode.ErasureCoderOptions;
 
 /**
- * Test raw Reed-solomon coder implemented in Java.
+ * A raw coder factory for the new raw Reed-Solomon coder in OPAE.
  */
-public class TestRSRawCoderInteroperable1 extends TestRSRawCoderBase {
+@InterfaceAudience.Private
+public class OpaeRSRawErasureCoderFactory implements RawErasureCoderFactory {
 
-  @Before
-  public void setup() {
-    Assume.assumeTrue(ErasureCodeNative.isNativeCodeLoaded());
+  public static final String CODER_NAME = "rs_opae";
 
-    // TODO: add OPAE RS coder
-    this.encoderFactoryClass = RSRawErasureCoderFactory.class;
-    this.decoderFactoryClass = NativeRSRawErasureCoderFactory.class;
-    setAllowDump(true);
+  @Override
+  public RawErasureEncoder createEncoder(ErasureCoderOptions coderOptions) {
+    return new OpaeRSRawEncoder(coderOptions);
   }
 
+  @Override
+  public RawErasureDecoder createDecoder(ErasureCoderOptions coderOptions) {
+    return new OpaeRSRawDecoder(coderOptions);
+  }
+
+  @Override
+  public String getCoderName() {
+    return CODER_NAME;
+  }
+
+  @Override
+  public String getCodecName() {
+    return ErasureCodeConstants.OPAE_RS_CODEC_NAME;
+  }
 }

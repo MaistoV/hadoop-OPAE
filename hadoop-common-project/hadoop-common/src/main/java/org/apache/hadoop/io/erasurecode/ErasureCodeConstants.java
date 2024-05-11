@@ -27,6 +27,7 @@ public final class ErasureCodeConstants {
 
   public static final String DUMMY_CODEC_NAME = "dummy";
   public static final String RS_CODEC_NAME = "rs";
+  public static final String OPAE_RS_CODEC_NAME = "rs-opae"; // Different codec name
   public static final String RS_LEGACY_CODEC_NAME = "rs-legacy";
   public static final String XOR_CODEC_NAME = "xor";
   public static final String HHXOR_CODEC_NAME = "hhxor";
@@ -49,6 +50,24 @@ public final class ErasureCodeConstants {
 
   public static final ECSchema REPLICATION_1_2_SCHEMA = new ECSchema(
       REPLICATION_CODEC_NAME, 1, 2);
+
+  ////////////////////////////////////////////////////////////////////
+  // Different codec name
+  public static final ECSchema OPAE_RS_6_3_SCHEMA = new ECSchema(
+      OPAE_RS_CODEC_NAME, 6, 3);
+
+  public static final ECSchema OPAE_RS_3_2_SCHEMA = new ECSchema(
+      OPAE_RS_CODEC_NAME, 3, 2);
+  ////////////////////////////////////////////////////////////////////
+
+  ////////////////////////////////////////////////////////////////////
+  // Same codec name as reguar RS, just change the underlying coder implementation
+//   public static final ECSchema OPAE_RS_6_3_SCHEMA = new ECSchema(
+//       RS_CODEC_NAME, 6, 3);
+
+//   public static final ECSchema OPAE_RS_3_2_SCHEMA = new ECSchema(
+//       RS_CODEC_NAME, 3, 2);
+  ////////////////////////////////////////////////////////////////////
 
   public static final byte MAX_POLICY_ID = Byte.MAX_VALUE;
   public static final byte USER_DEFINED_POLICY_START_ID = (byte) 64;

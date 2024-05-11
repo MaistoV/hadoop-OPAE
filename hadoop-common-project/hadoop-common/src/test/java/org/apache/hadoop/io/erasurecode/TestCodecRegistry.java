@@ -24,6 +24,7 @@ import org.apache.hadoop.io.erasurecode.rawcoder.RSRawErasureCoderFactory;
 import org.apache.hadoop.io.erasurecode.rawcoder.RawErasureCoderFactory;
 import org.apache.hadoop.io.erasurecode.rawcoder.RawErasureDecoder;
 import org.apache.hadoop.io.erasurecode.rawcoder.RawErasureEncoder;
+import org.apache.hadoop.io.erasurecode.rawcoder.OpaeRSRawErasureCoderFactory;
 import org.apache.hadoop.io.erasurecode.rawcoder.XORRawErasureCoderFactory;
 import org.junit.Test;
 
@@ -42,14 +43,18 @@ public class TestCodecRegistry {
   @Test
   public void testGetCodecs() {
     Set<String> codecs = CodecRegistry.getInstance().getCodecNames();
-    assertEquals(3, codecs.size());
+    // 3+1 for separate codec
+    assertEquals(4, codecs.size());
     assertTrue(codecs.contains(ErasureCodeConstants.RS_CODEC_NAME));
     assertTrue(codecs.contains(ErasureCodeConstants.RS_LEGACY_CODEC_NAME));
     assertTrue(codecs.contains(ErasureCodeConstants.XOR_CODEC_NAME));
+    // For separate codec
+    assertTrue(codecs.contains(ErasureCodeConstants.OPAE_RS_CODEC_NAME));
   }
 
   @Test
   public void testGetCoders() {
+    // After, re-aligning OPAE_RS and RS codecs, add OpaeRSRawErasureCoderFactory here
     List<RawErasureCoderFactory> coders = CodecRegistry.getInstance().
             getCoders(ErasureCodeConstants.RS_CODEC_NAME);
     assertEquals(2, coders.size());
@@ -60,6 +65,12 @@ public class TestCodecRegistry {
             getCoders(ErasureCodeConstants.RS_LEGACY_CODEC_NAME);
     assertEquals(1, coders.size());
     assertTrue(coders.get(0) instanceof RSLegacyRawErasureCoderFactory);
+
+    // For now, with different codec
+    coders = CodecRegistry.getInstance().
+            getCoders(ErasureCodeConstants.OPAE_RS_CODEC_NAME);
+    assertEquals(1, coders.size());
+    assertTrue(coders.get(0) instanceof OpaeRSRawErasureCoderFactory);
 
     coders = CodecRegistry.getInstance().
             getCoders(ErasureCodeConstants.XOR_CODEC_NAME);
@@ -77,11 +88,17 @@ public class TestCodecRegistry {
 
   @Test
   public void testGetCoderNames() {
+    // After, re-aligning OPAE_RS and RS codecs, add OpaeRSRawErasureCoderFactory here
     String[] coderNames = CodecRegistry.getInstance().
         getCoderNames(ErasureCodeConstants.RS_CODEC_NAME);
     assertEquals(2, coderNames.length);
     assertEquals(NativeRSRawErasureCoderFactory.CODER_NAME, coderNames[0]);
     assertEquals(RSRawErasureCoderFactory.CODER_NAME, coderNames[1]);
+
+    // For now, with different codec
+    coderNames = CodecRegistry.getInstance().getCoderNames(ErasureCodeConstants.OPAE_RS_CODEC_NAME);
+    assertEquals(1, coderNames.length);
+    assertEquals(OpaeRSRawErasureCoderFactory.CODER_NAME,coderNames[0]);
 
     coderNames = CodecRegistry.getInstance().
         getCoderNames(ErasureCodeConstants.RS_LEGACY_CODEC_NAME);
@@ -104,6 +121,7 @@ public class TestCodecRegistry {
         RSRawErasureCoderFactory.CODER_NAME);
     assertTrue(coder instanceof RSRawErasureCoderFactory);
 
+    // After, re-aligning OPAE_RS and RS codecs, add OpaeRSRawErasureCoderFactory here
     coder = CodecRegistry.getInstance().getCoderByName(
         ErasureCodeConstants.RS_CODEC_NAME,
         NativeRSRawErasureCoderFactory.CODER_NAME);
@@ -157,6 +175,7 @@ public class TestCodecRegistry {
     CodecRegistry.getInstance().updateCoders(userDefinedFactories);
 
     // check RS coders
+    // After, re-aligning OPAE_RS and RS codecs, add OpaeRSRawErasureCoderFactory here
     List<RawErasureCoderFactory> rsCoders = CodecRegistry.getInstance().
         getCoders(ErasureCodeConstants.RS_CODEC_NAME);
     assertEquals(2, rsCoders.size());
@@ -164,6 +183,7 @@ public class TestCodecRegistry {
     assertTrue(rsCoders.get(1) instanceof RSRawErasureCoderFactory);
 
     // check RS coder names
+    // After, re-aligning OPAE_RS and RS codecs, add OpaeRSRawErasureCoderFactory here
     String[] rsCoderNames = CodecRegistry.getInstance().
         getCoderNames(ErasureCodeConstants.RS_CODEC_NAME);
     assertEquals(2, rsCoderNames.length);

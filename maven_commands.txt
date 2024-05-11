@@ -1,0 +1,28 @@
+# GCC setup
+source /opt/rh/gcc-toolset-9/enable
+
+# Clean
+mvn clean
+
+# Build distrubution and archive, with native libs
+mvn package -Pdist,native -DskipTests -Dtar
+
+# + Debug log
+mvn package -X -Pdist,native -DskipTests -Dtar
+
+# + skip doc
+mvn package -Pdist -DskipTests -Dtar -Dmaven.javadoc.skip=true --offline
+
+mvn package -Pdist,native -DskipTests -Dtar -Dmaven.javadoc.skip=true --offline -T 4
+
+# Don't skip tests
+mvn package -Pdist,native -Dtar -Dmaven.javadoc.skip=true --offline -T 4
+
+# offline mode
+mvn --offline
+
+# multiple threads
+mvn -T 4
+
+# build only target modules (from <modules> in top pom.xml)
+mvn --projects hadoop-common-project,hadoop-hdfs-project --also-make clean package

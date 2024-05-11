@@ -30,6 +30,7 @@ public class TestRSRawCoderInteroperable2 extends TestRSRawCoderBase {
   public void setup() {
     Assume.assumeTrue(ErasureCodeNative.isNativeCodeLoaded());
 
+    // TODO: add OPAE RS coder
     this.encoderFactoryClass = NativeRSRawErasureCoderFactory.class;
     this.decoderFactoryClass = RSRawErasureCoderFactory.class;
     setAllowDump(true);

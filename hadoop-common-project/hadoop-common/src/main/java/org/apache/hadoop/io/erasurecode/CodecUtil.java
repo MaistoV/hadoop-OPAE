@@ -74,6 +74,9 @@ public final class CodecUtil {
   public static final String IO_ERASURECODE_CODEC_RS_RAWCODERS_KEY =
       IO_ERASURECODE_CODEC + "rs.rawcoders";
 
+  public static final String IO_ERASURECODE_CODEC_OPAE_RS_RAWCODERS_KEY =
+      IO_ERASURECODE_CODEC + "rs-opae.rawcoders";
+
   /** Raw coder factory for the XOR codec. */
   public static final String IO_ERASURECODE_CODEC_XOR_RAWCODERS_KEY =
       IO_ERASURECODE_CODEC + "xor.rawcoders";
@@ -175,24 +178,42 @@ public final class CodecUtil {
 
   private static RawErasureEncoder createRawEncoderWithFallback(
       Configuration conf, String codecName, ErasureCoderOptions coderOptions) {
+
+    System.out.println("[createRawEncoderWithFallback] Entering createRawEncoderWithFallback.");
+    System.out.println("[createRawEncoderWithFallback] codecName " + codecName );
+    System.out.println("[createRawEncoderWithFallback] coderOptions " + coderOptions );
+    LOG.warn("[createRawEncoderWithFallback] Entering createRawEncoderWithFallback.");
+    LOG.warn("[createRawEncoderWithFallback] codecName " + codecName );
+    LOG.warn("[createRawEncoderWithFallback] coderOptions " + coderOptions );
+
     boolean nativeEncoderEnabled = conf.getBoolean(IO_ERASURECODE_CODEC_NATIVE_ENABLED_KEY,
         IO_ERASURECODE_CODEC_NATIVE_ENABLED_DEFAULT);
+
+    LOG.warn("[createRawEncoderWithFallback] nativeEncoderEnabled " + nativeEncoderEnabled);
+
     String[] rawCoderNames = getRawCoderNames(conf, codecName);
+    LOG.warn("[createRawEncoderWithFallback] rawCoderNames " + rawCoderNames);
     for (String rawCoderName : rawCoderNames) {
+      LOG.warn("[createRawEncoderWithFallback] parsing rawCoderName " + rawCoderName);
+
       if (!nativeEncoderEnabled && rawCoderName.contains("native")) {
-        LOG.debug("Disable the encoder with ISA-L.");
+        LOG.warn("Disable the encoder with ISA-L.");
         continue;
       }
       try {
         if (rawCoderName != null) {
           RawErasureCoderFactory fact = createRawCoderFactory(
               rawCoderName, codecName);
+          
+          System.out.println("[createRawEncoderWithFallback] createRawCoderFactory returned " + fact);
+          LOG.warn("[createRawEncoderWithFallback] createRawCoderFactory returned " + fact );
+
           return fact.createEncoder(coderOptions);
         }
       } catch (LinkageError | Exception e) {
         // Fallback to next coder if possible
         if (LOG.isDebugEnabled()) {
-          LOG.debug("Failed to create raw erasure encoder " + rawCoderName +
+          LOG.warn("Failed to create raw erasure encoder " + rawCoderName +
               ", fallback to next codec if possible", e);
         }
       }
@@ -208,7 +229,7 @@ public final class CodecUtil {
     String[] coders = getRawCoderNames(conf, codecName);
     for (String rawCoderName : coders) {
       if (!nativeDecoderEnabled && rawCoderName.contains("native")) {
-        LOG.debug("Disable the decoder with ISA-L.");
+        LOG.warn("Disable the decoder with ISA-L.");
         continue;
       }
       try {
@@ -220,7 +241,7 @@ public final class CodecUtil {
       } catch (LinkageError | Exception e) {
         // Fallback to next coder if possible
         if (LOG.isDebugEnabled()) {
-          LOG.debug("Failed to create raw erasure decoder " + rawCoderName +
+          LOG.warn("Failed to create raw erasure decoder " + rawCoderName +
                   ", fallback to next codec if possible", e);
         }
       }
@@ -256,6 +277,12 @@ public final class CodecUtil {
   private static String getCodecClassName(Configuration conf, String codec) {
     switch (codec) {
     case ErasureCodeConstants.RS_CODEC_NAME:
+      return conf.get(
+          CodecUtil.IO_ERASURECODE_CODEC_RS_KEY,
+          CodecUtil.IO_ERASURECODE_CODEC_RS);
+    // Same codec as ErasureCodeConstants.RS_CODEC_NAME?
+    // Need to define another, to have show the ECPolicy
+    case ErasureCodeConstants.OPAE_RS_CODEC_NAME:
       return conf.get(
           CodecUtil.IO_ERASURECODE_CODEC_RS_KEY,
           CodecUtil.IO_ERASURECODE_CODEC_RS);

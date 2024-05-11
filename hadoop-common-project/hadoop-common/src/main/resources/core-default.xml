@@ -1017,6 +1017,17 @@
   </description>
 </property>
 
+<!-- As separate codec -->
+<property>
+  <name>io.erasurecode.codec.rs-opae.rawcoders</name>
+  <value>rs_opae</value>
+  <description>
+    Comma separated raw coder implementations for the rs-opae codec. This is only 
+    meant for demonstration. Production is going to feature opae_rs as alternative
+    io.erasurecode.codec.rs.rawcoders coder
+  </description>
+</property>
+
 <property>
   <name>io.erasurecode.codec.rs-legacy.rawcoders</name>
   <value>rs-legacy_java</value>

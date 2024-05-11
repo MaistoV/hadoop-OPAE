@@ -46,6 +46,7 @@ public class TestDecodingValidator extends TestRawCoderBase {
 
   @Parameterized.Parameters
   public static Collection<Object[]> data() {
+    // TODO: add OPAE RS coder
     return Arrays.asList(new Object[][] {
         {RSRawErasureCoderFactory.class, 6, 3, new int[]{1}, new int[]{}},
         {RSRawErasureCoderFactory.class, 6, 3, new int[]{3}, new int[]{0}},

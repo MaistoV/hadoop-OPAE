@@ -30,12 +30,12 @@ public class OpaeRSRawErasureCoderFactory implements RawErasureCoderFactory {
   public static final String CODER_NAME = "rs_opae";
 
   @Override
-  public RawErasureEncoder createEncoder(ErasureCoderOptions coderOptions) {
+  public OpaeRSRawEncoder createEncoder(ErasureCoderOptions coderOptions) {
     return new OpaeRSRawEncoder(coderOptions);
   }
 
   @Override
-  public RawErasureDecoder createDecoder(ErasureCoderOptions coderOptions) {
+  public OpaeRSRawDecoder createDecoder(ErasureCoderOptions coderOptions) {
     return new OpaeRSRawDecoder(coderOptions);
   }
 

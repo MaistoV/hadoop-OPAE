@@ -18,13 +18,15 @@ import javax.naming.Context;
 import javax.naming.InitialContext;
 import javax.naming.NamingException;
 
+// import java.util.Arrays;
+
 // Most of code imported from VFProxy.MockVFProxyClient
 
 public class OpaeCoderConnector {
 
     // TODO: export hard-coded parameters here, ideally in a dynamic config file
     private static String jndiFactoryInital = "org.apache.activemq.jndi.ActiveMQInitialContextFactory";
-    private static String providerURL = "tcp://127.0.0.1:61616";
+    private static String jndiProviderURL = "tcp://127.0.0.1:61616";
     private static String [] PCIesbdfArray = { "0000:01:00.1" };
     // private static String [] PCIesbdfArray = {
     //                                             "0000:01:00.1",
@@ -43,91 +45,144 @@ public class OpaeCoderConnector {
     private Queue           queueRequest ;
     private Queue           queueResponse;
 
-    // Spawn a new Connection and Session
-    // NOTE: some of this might be redundant, 
-    // e.g. Conncetion might be shared across Queues and Sessions
-    public void connectToJMSProvider () throws NamingException, JMSException {
-        // Select a VF randomly
-        Random random = new Random();
-        String sbdfString = PCIesbdfArray [ random.nextInt(PCIesbdfArray.length) ];
-        // Connect to provider
-        Hashtable <String, String> p = new Hashtable <String, String>();
-        p.put("java.naming.factory.initial", jndiFactoryInital );
-        p.put("java.naming.provider.url", providerURL );
+    // Mock-mode test
+    private final boolean useMockMode;
+    // Mock-mode message buffer
+    Hashtable<String, byte[]> messageMockHashtable;
 
-        // Queues names
-        p.put("queue.Request"  + sbdfString, "Request"  + sbdfString );
-        p.put("queue.Response" + sbdfString, "Response" + sbdfString );
-        
-        // Create context
-        Context context = new InitialContext ( p );
-        // Lookup queues
-        queueRequest  = (Queue) context.lookup("Request"  + sbdfString );
-        queueResponse = (Queue) context.lookup("Response" + sbdfString );
-        // Lookup (Factory) and start Connection
-        QueueConnectionFactory connectionFactory = (QueueConnectionFactory)context.lookup("QueueConnectionFactory");
-        QueueConnection connection = connectionFactory.createQueueConnection();
-        connection.start();
-        
-        // Create single-threaded session
-        // NOTE: this can't be shared across threads
-        session = connection.createQueueSession(false, Session.AUTO_ACKNOWLEDGE);
-        requestMapMessage = session.createMapMessage();
-        
-        // Setup Sender for queueRequest
-        sender = session.createSender(queueRequest);
-        // Setup Receiver for queueResponse
-        receiver = session.createReceiver(queueResponse);
+    // Spawn a new Connection and Session
+    // NOTE: can't seem to test deploylevel complexity JMS(ActiveMQ) in JUnit, so just use some mock logic during testing.
+    //  This is a dirty workaround, **meant to be removed in the future**. 
+    //  This current solution requires snippets of code below to be be tested externally.
+    //  W.r.t. to overhead in deplopy: since useMockMode is "final", JIT should take care of removing the mock code on 
+    //  construction.
+    public OpaeCoderConnector () throws NamingException, JMSException {
+        // Init mock mode flag based on environment variable 
+        if ( System.getenv("HADOOP_MAVEN_TEST_USE_MOCK") != null ) {
+            useMockMode = true;
+        } else {
+            useMockMode = false;
+        }
+
+        // If not in mock mode
+        if ( !useMockMode ) {
+            // Select a VF randomly
+            Random random = new Random();
+            String sbdfString = PCIesbdfArray [ random.nextInt(PCIesbdfArray.length) ];
+            // Connect to provider
+            Hashtable <String, String> providerHashtable = new Hashtable <String, String>();
+            providerHashtable.put("java.naming.factory.initial", jndiFactoryInital );
+            providerHashtable.put("java.naming.provider.url"   , jndiProviderURL   );
+
+            // Queues names
+            providerHashtable.put("queue.Request"  + sbdfString, "Request"  + sbdfString );
+            providerHashtable.put("queue.Response" + sbdfString, "Response" + sbdfString );
+            
+            // Create context
+            Context context = new InitialContext ( providerHashtable );
+            // Lookup queues
+            queueRequest  = (Queue) context.lookup("Request"  + sbdfString );
+            queueResponse = (Queue) context.lookup("Response" + sbdfString );
+            // Lookup (Factory) and start Connection
+            QueueConnectionFactory connectionFactory = (QueueConnectionFactory)context.lookup("QueueConnectionFactory");
+            QueueConnection connection = connectionFactory.createQueueConnection();
+            connection.start();
+            
+            // Create single-threaded session
+            // TODO: also consider tarnsacted Sessions, e.g.: session = connection.createQueueSession(true, 0);
+            session = connection.createQueueSession(false, Session.AUTO_ACKNOWLEDGE);
+            requestMapMessage = session.createMapMessage();
+            
+            // Setup Sender for queueRequest
+            sender = session.createSender(queueRequest);
+            // Setup Receiver for queueResponse
+            receiver = session.createReceiver(queueResponse);
+        } // !useMockMode
+        else { // useMockMode
+            messageMockHashtable = new Hashtable<String, byte[]> ();
+        } // !useMockMode
     }
 
     // sendMessage, ByteBufferEncodingState version
-    public void sendMessage ( 
+    public void sendMessageByteBuffer ( 
                        ByteBufferEncodingState encodingState,
                        byte[] survival_pattern,
                        byte[] erasure_pattern
                     ) throws JMSException {
-        // Compose message
-        requestMapMessage.setBytes("erasure_pattern" , erasure_pattern            ); // byte[] 
-        requestMapMessage.setBytes("survival_pattern", survival_pattern           ); // byte[] 
-        requestMapMessage.setBytes("cell_length"     , encodingState.encodeLength ); // int
-        requestMapMessage.setBytes("survived_cells"  , encodingState.inputs       ); // ByteBuffer[]
-        // Set response queue
-        requestMapMessage.setJMSReplyTo( queueResponse );
-        // Send
-        sender.send( requestMapMessage );
+        // Just convert ByteBufferEncodingState to ByteArrayEncodingState
+        sendMessageByteArray (
+                        encodingState.convertToByteArrayState(), 
+                        erasure_pattern,
+                        survival_pattern
+                    );
     }
 
     // sendMessage, ByteArrayEncodingState version
-    public void sendMessageWithOffset ( 
+    public void sendMessageByteArray ( 
                        ByteArrayEncodingState encodingState,
                        byte[] survival_pattern,
                        byte[] erasure_pattern
                     ) throws JMSException {
-        // Compose message
-        requestMapMessage.setBytes("erasure_pattern" , erasure_pattern            ); // byte[] 
-        requestMapMessage.setBytes("survival_pattern", survival_pattern           ); // byte[] 
-        requestMapMessage.setBytes("cell_length"     , encodingState.encodeLength ); // int
-        requestMapMessage.setBytes("survived_cells"  , encodingState.inputs       ); // byte[][]
-        // Set response queue
-        requestMapMessage.setJMSReplyTo( queueResponse );
-        // Send
-        sender.send( requestMapMessage );
-    }
-
-    // receiveMessage, ByteBufferEncodingState version
-    public void receiveMessageReply( ByteBufferEncodingState encodingState ) throws JMSException {
-        BytesMessage replyBytesMessage = replyBytesMessage = (BytesMessage) receiver.receive();
-        byte [] byteReplyData = new byte[(int) replyBytesMessage.getBodyLength()];
-        replyBytesMessage.readBytes( byteReplyData );
-        // TODO: check this
-        // Must only copy <encodingState.encodeLength> bytes
-        // encodingState.outputs = new ByteBuffer(byteReplyData);
+        // Serialize input data
+        int numDataUnits = encodingState.inputs.length;
+        byte[] serializedByteArrayInputs = new byte [ numDataUnits * encodingState.encodeLength ];
+        for ( int i = 0; i < numDataUnits; i++ ) {
+            for ( int j = 0; j < encodingState.encodeLength; j++ ) {
+                serializedByteArrayInputs[ (i *  encodingState.encodeLength ) + j ] =
+                    encodingState.inputs[i][j];
+            }
+        }
+        
+        // If not in mock-mode
+        if ( !useMockMode ){
+            // Compose message
+            requestMapMessage.setBytes("erasure_pattern" , erasure_pattern            ); // byte[] 
+            requestMapMessage.setBytes("survival_pattern", survival_pattern           ); // byte[] 
+            requestMapMessage.setInt  ("cell_length"     , encodingState.encodeLength ); // int
+            requestMapMessage.setBytes("survived_cells"  , serializedByteArrayInputs  ); // byte[]
+            // Set response queue
+            requestMapMessage.setJMSReplyTo( queueResponse );
+            // Send
+            sender.send( requestMapMessage );
+        } // !useMockMode
+        else { // useMockMode
+            // Just mock message passing by local Hashmap
+            messageMockHashtable.put("survived_cells"  , serializedByteArrayInputs  ); // byte[]
+        } // useMockMode
     }
 
     // receiveMessage, ByteArrayEncodingState version
-    public void receiveMessageReplyWithOffsets ( ByteArrayEncodingState encodingState ) throws JMSException {
-        // TBD
-    }
-    
+    public void receiveMessageReplyByteArray ( ByteArrayEncodingState encodingState ) throws JMSException {
+        // Allocate buffer for serialized data
+        byte [] byteReplyData = new byte[(int) (encodingState.outputs.length * encodingState.encodeLength)];
+        
+        // If not in mock-mode
+        if ( !useMockMode ){
+            BytesMessage replyBytesMessage = replyBytesMessage = (BytesMessage) receiver.receive();
+            replyBytesMessage.readBytes( byteReplyData );
+        } // !useMockMode
+        else { // useMockMode
+            // Just mock message passing by local Hashmap
+            byteReplyData = messageMockHashtable.get("survived_cells"); // byte[]
+        } // useMockMode
 
+        // Deserialize output data
+        int numParityUnits = encodingState.outputs.length;
+        for ( int i = 0; i < numParityUnits; i++ ) {
+            for ( int j = 0; j < encodingState.encodeLength; j++ ) {
+                // Just loopback for mock-mode
+                encodingState.outputs[i][j] = byteReplyData[ (i * encodingState.encodeLength ) + j ];
+            }
+        }
+    }
+
+    // receiveMessage, ByteBufferEncodingState version
+    public void receiveMessageReplyByteBuffer( ByteBufferEncodingState encodingState ) throws JMSException {
+        // NOTE: This is really unefficient!
+        ByteArrayEncodingState byteArrayEncodingState = encodingState.convertToByteArrayState();
+        // Just convert to ByteArrayEncodingState
+        receiveMessageReplyByteArray ( byteArrayEncodingState );
+        // and back to ByteBufferEncodingState
+        encodingState = byteArrayEncodingState.convertToByteBufferState(); 
+    }
 }

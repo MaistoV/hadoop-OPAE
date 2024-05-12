@@ -20,39 +20,164 @@ package org.apache.hadoop.io.erasurecode.rawcoder;
 import org.apache.hadoop.io.erasurecode.rawcoder.OpaeRSRawErasureCoderFactory;
 import org.apache.hadoop.io.erasurecode.rawcoder.OpaeRSRawEncoder;
 import org.apache.hadoop.io.erasurecode.rawcoder.OpaeRSRawDecoder;
+import org.apache.hadoop.io.erasurecode.rawcoder.OpaeCoderConnector;
+import org.apache.hadoop.io.erasurecode.ErasureCoderOptions;
+
+import java.nio.ByteBuffer;
+import java.util.Random;
+
+import javax.naming.NamingException;
+import javax.jms.JMSException;
+import java.io.IOException;
+
 import org.junit.Test;
-
-import java.util.ArrayList;
-
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.fail;
+
 
 /**
- * Test CodecRegistry.
+ * Test preliminary OpaeRSCoding feature.
  */
-public class TestCodecRegistry {
+public class TestOpaeRSRawCoding {
+
   @Test
-  public void testVFProxyResponseByteBuffer() {
+  public void testNewOpaeCoderConnector() {
+    OpaeCoderConnector localOpaeCoderConnector = null;
+    try {
+      localOpaeCoderConnector = new OpaeCoderConnector();
+    }
+    catch ( NamingException e ) {
+      e.printStackTrace();
+      fail("Encountered unexpected NamingException");
+    }
+    catch ( JMSException e ) {
+      e.printStackTrace();
+      fail("Encountered unexpected JMSException");
+    }
+      
+    // Assert on class
+    assertNotNull( localOpaeCoderConnector );
+  }
+
+  @Test
+  public void testNewOpaeRSRawEncoder() {
     // Get encoder from Factory
     int numDataUnits   = 3;
     int numParityUnits = 2;
     ErasureCoderOptions coderOptions = new ErasureCoderOptions(numDataUnits, numParityUnits);
     OpaeRSRawErasureCoderFactory coderFactory = new OpaeRSRawErasureCoderFactory();
-    OpaeRSRawEncoder encoder = coderFactory.createEncoder();
+    OpaeRSRawEncoder encoder = coderFactory.createEncoder(coderOptions);
 
-    // Encode (Send message, wait for reply)
-    ByteBuffer[] inputs =  new byte [numDataUnits  ][length];
-    ByteBuffer[] outputs = new byte [numParityUnits][length];
-    encoder.encode( inputs, outputs );
-
-    // Check return data (loopback for now)
-    assertEquals(inputs[0], outouts[0]);
-    assertEquals(inputs[1], outouts[1]);
+    // Assert on class
+    assertNotNull( encoder );
   }
 
-  // @Test
-  // public void testVFProxyResponseByteArray() {
-  //   // TBD
-  //   // byte[][] inputs =  new byte [ numDataUnits   ] [ length ];
-  //   // byte[][] outputs = new byte [ numParityUnits ] [ length ];
-  // }
+  @Test
+  public void testNewOpaeRSRawDecoder() {
+    // Get decoder from Factory
+    int numDataUnits   = 3;
+    int numParityUnits = 2;
+    ErasureCoderOptions coderOptions = new ErasureCoderOptions(numDataUnits, numParityUnits);
+    OpaeRSRawErasureCoderFactory coderFactory = new OpaeRSRawErasureCoderFactory();
+    OpaeRSRawDecoder decoder = coderFactory.createDecoder(coderOptions);
+
+    // Assert on class
+    assertNotNull( decoder );
+  }
+
+  @Test
+  public void testEncodeByteArray() {
+    // Get encoder from Factory
+    int numDataUnits   = 3;
+    int numParityUnits = 2;
+    ErasureCoderOptions coderOptions = new ErasureCoderOptions(numDataUnits, numParityUnits);
+    OpaeRSRawErasureCoderFactory coderFactory = new OpaeRSRawErasureCoderFactory();
+    OpaeRSRawEncoder encoder = coderFactory.createEncoder(coderOptions);
+
+    // Declare buffers
+    int length = 8;
+    byte[][] inputs =  new byte [numDataUnits  ][length];
+    byte[][] outputs = new byte [numParityUnits][length];
+
+    // init output
+    for ( byte [] output : outputs ) {
+      for ( int i = 0; i < output.length; i++ ) {
+          output[i] = (byte)255;
+      }
+    }
+
+    // Compose message
+    Random random = new Random();
+    for ( byte [] input : inputs ) {
+        random.nextBytes(input);
+    }
+
+    // Encode (Send message, wait for reply)
+    try {
+      encoder.encode( inputs, outputs );
+    }
+    catch ( IOException e ) {
+      fail("Encountered unexpected exception");
+    }
+
+    // Check return data (loopback for now)
+    assertArrayEquals(inputs[0], outputs[0]);
+    assertArrayEquals(inputs[1], outputs[1]);
+  }
+
+  @Test
+  public void testEncodeByteBuffer() {
+    // Get encoder from Factory
+    int numDataUnits   = 3;
+    int numParityUnits = 2;
+    ErasureCoderOptions coderOptions = new ErasureCoderOptions(numDataUnits, numParityUnits);
+    OpaeRSRawErasureCoderFactory coderFactory = new OpaeRSRawErasureCoderFactory();
+    OpaeRSRawEncoder encoder = coderFactory.createEncoder(coderOptions);
+
+    // Declare buffers
+    int length = 8;
+    // ByteBuffer[] inputs =  new ByteBuffer() [numDataUnits  ];
+    // ByteBuffer[] outputs = new ByteBuffer() [numParityUnits];
+
+    // TODO: implement
+    fail("Unimplemented");
+  }
+
+  @Test
+  public void testDecodeByteArray() {
+    // TODO: implement
+    fail("Unimplemented");
+  }
+
+  @Test
+  public void testDecodeByteBuffer() {
+    // TODO: implement
+    fail("Unimplemented");
+  }
+
+  @Test
+  public void testIntArrayToUint16() {
+    // Get decoder from Factory
+    int numDataUnits   = 3;
+    int numParityUnits = 2;
+    ErasureCoderOptions coderOptions = new ErasureCoderOptions(numDataUnits, numParityUnits);
+    OpaeRSRawErasureCoderFactory coderFactory = new OpaeRSRawErasureCoderFactory();
+    OpaeRSRawDecoder decoder = coderFactory.createDecoder(coderOptions);
+
+    // Declare input and output
+    int intArray[] = null;
+    int pattern = 0;
+
+    // Contiguous pattern
+    intArray = new int [] { 0, 1, 2, 3, 4, 5 };
+    pattern = decoder.intArrayToUint16 ( intArray );
+    assertEquals( pattern, 0x001f );
+
+
+    // TODO: add more
+    // fail("TODO: add more test cases");
+  }
+
 }

@@ -22,8 +22,10 @@ import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.io.erasurecode.ErasureCoderOptions;
 import org.apache.hadoop.io.erasurecode.rawcoder.util.DumpUtil;
 import org.apache.hadoop.io.erasurecode.rawcoder.util.RSUtil;
-
 import org.apache.hadoop.io.erasurecode.rawcoder.OpaeCoderConnector;
+
+import javax.naming.NamingException;
+import javax.jms.JMSException;
 
 // TODO: refactor this for directly RS configurations, ideally from a dynamic config file
 // TODO: handle exceptions, in particular: NamingException and JMSException
@@ -32,13 +34,14 @@ import org.apache.hadoop.io.erasurecode.rawcoder.OpaeCoderConnector;
 public class OpaeRSRawEncoder extends RawErasureEncoder {
 
   /**
-   * Variants of the "encode" methods are inherided by super, i.e. RawErasureEncoder
+   * The "encode" methods are inherited by super, i.e. RawErasureEncoder
    */
 
   // Static of encoding message
   byte[] survival_pattern;
   byte[] erasure_pattern;
 
+  // Connctor to JMS provider
   OpaeCoderConnector localOpaeCoderConnector;
 
   public OpaeRSRawEncoder(ErasureCoderOptions coderOptions) {
@@ -76,8 +79,8 @@ public class OpaeRSRawEncoder extends RawErasureEncoder {
     // Init mask
     int RS_PATTERN_MASK = (1 << getNumAllUnits()) -1;
     // NOTE: this relies on getNumAllUnits() < 16
-    byte[] survival_pattern = new byte[2]; // 16 bits
-    byte[] erasure_pattern  = new byte[2]; // 16 bits
+    survival_pattern = new byte[2]; // 16 bits
+    erasure_pattern  = new byte[2]; // 16 bits
 		// For encoding, these patterns are always the same
     // First compose as int
 		int survived_cells_int  = RS_PATTERN_MASK &  ((1 << getNumDataUnits()) -1); // Bitmask for first k blocks
@@ -89,26 +92,41 @@ public class OpaeRSRawEncoder extends RawErasureEncoder {
     erasure_pattern [1] = (byte) (erasure_pattern_int / 16);
 
     // Create new connector
-    OpaeCoderConnector localOpaeCoderConnector = new OpaeCoderConnector();
+    try {
+      localOpaeCoderConnector = new OpaeCoderConnector(); 
+    }
+    catch ( NamingException e ) {
+      e.printStackTrace();
+      throw new HadoopIllegalArgumentException (
+          "Encountered unexpected NamingException");
+    }
+    catch ( JMSException e ) {
+      e.printStackTrace();
+      throw new HadoopIllegalArgumentException (
+          "Encountered unexpected JMSException");
+    }
   }
 
   @Override
   protected void doEncode(ByteBufferEncodingState encodingState) {
     CoderUtil.resetOutputBuffers(encodingState.outputs,
         encodingState.encodeLength);
-        
-    // Create new connection
-    localOpaeCoderConnector.connectToJMSProvider();
 
-    // Send new message
-    localOpaeCoderConnector.sendMessage (
-                              encodingState, 
-                              erasure_pattern,
-                              survival_pattern
-                            );
+    try {
+      // Send new message
+      localOpaeCoderConnector.sendMessageByteBuffer (
+                                encodingState, 
+                                erasure_pattern,
+                                survival_pattern
+                              );
 
-    // Wait for response
-    localOpaeCoderConnector.receiveMessageReply ( encodingState );
+      // Wait for response
+      localOpaeCoderConnector.receiveMessageReplyByteBuffer ( encodingState );
+    }
+    catch ( JMSException e ) {
+      // TODO: handle exception
+      e.printStackTrace();
+    }
   }
 
   @Override
@@ -118,22 +136,25 @@ public class OpaeRSRawEncoder extends RawErasureEncoder {
         encodingState.outputOffsets,
         encodingState.encodeLength);
 
-    // Create new connection
-    localOpaeCoderConnector.connectToJMSProvider();
+    try {
+      // Send new message
+      localOpaeCoderConnector.sendMessageByteArray (
+                                encodingState,
+                                erasure_pattern,
+                                survival_pattern
+                              );
 
-    // Send new message
-    localOpaeCoderConnector.sendMessageWithOffset (
-                              encodingState, 
-                              erasure_pattern,
-                              survival_pattern
-                            );
-
-    // Wait for response
-    localOpaeCoderConnector.receiveMessageReplyWithOffsets ( encodingState );
+      // Wait for response
+      localOpaeCoderConnector.receiveMessageReplyByteArray ( encodingState );
+    }
+    catch ( JMSException e ) {
+      // TODO: handle exception
+      e.printStackTrace();
+    }
   }
 
   // TODO: check this
-  @Override
+  // @Override
   public boolean preferDirectBuffer() {
       return true;
   }

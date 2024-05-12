@@ -21,11 +21,12 @@ import org.apache.hadoop.HadoopIllegalArgumentException;
 import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.io.erasurecode.ErasureCoderOptions;
 import org.apache.hadoop.io.erasurecode.rawcoder.util.DumpUtil;
-import org.apache.hadoop.io.erasurecode.rawcoder.util.GF256;
-import org.apache.hadoop.io.erasurecode.rawcoder.util.RSUtil;
 
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+
+import javax.naming.NamingException;
+import javax.jms.JMSException;
 
 /**
  * A raw erasure decoder in RS code scheme in pure Java in case native one
@@ -40,26 +41,81 @@ public class OpaeRSRawDecoder extends RawErasureDecoder {
   private int numErasedDataUnits;
   private boolean[] erasureFlags;
 
+  // This is constant across calls, for a single EC policy
+  private final int RS_PATTERN_MASK;
+  private byte[] survival_pattern;
+  private byte[] erasure_pattern ;
+
+  /**
+   * The "decode" methods are inherited by super, i.e. RawErasureDecoder
+   */
+
   public OpaeRSRawDecoder(ErasureCoderOptions coderOptions) {
     super(coderOptions);
 
-    // int numAllUnits = getNumAllUnits();
-    // if (getNumAllUnits() >= RSUtil.GF.getFieldSize()) {
-    //   throw new HadoopIllegalArgumentException(
-    //           "Invalid getNumDataUnits() and numParityUnits");
-    // }
+    // Check supported codec
+    // NOTE: these must only match with available bitstreams, new ones can be generated
+    if ( !(
+          // 10:4
+          ( (getNumDataUnits() == 10) && (getNumParityUnits() == 4) ) ||
+          // 6:3
+          ( (getNumDataUnits() ==  6) && (getNumParityUnits() == 3) ) ||
+          // 3:2
+          ( (getNumDataUnits() ==  3) && (getNumParityUnits() == 2) )
+          )
+        ) {
+      throw new HadoopIllegalArgumentException(
+          "Invalid numDataUnits and numParityUnits");
+    }
 
-    // encodeMatrix = new byte[numAllUnits * getNumDataUnits()];
-    // RSUtil.genCauchyMatrix(encodeMatrix, numAllUnits, getNumDataUnits());
-    // if (allowVerboseDump()) {
-    //   DumpUtil.dumpMatrix(encodeMatrix, getNumDataUnits(), numAllUnits);
-    // }
+    // Check maximum number of units
+    // NOTE: this is only limited by the current FPGA implementation,
+    // and could esily be extended
+    if ( getNumAllUnits() > 16 ) {
+      throw new HadoopIllegalArgumentException(
+          "numDataUnits + numParityUnits must curretly be <= 16");
+    }
+
+    // Compose static part of encoding message
+    // Init mask
+    RS_PATTERN_MASK = (1 << getNumAllUnits()) -1;
+    // Allocate space for erasure and survival patterns
+    // NOTE: this relies on getNumAllUnits() < 16
+    survival_pattern = new byte[2]; // 16 bits
+    erasure_pattern  = new byte[2]; // 16 bits
+
+    // Create new connector
+    OpaeCoderConnector localOpaeCoderConnector = null;
+    try {
+      localOpaeCoderConnector = new OpaeCoderConnector(); 
+    }
+    catch ( NamingException e ) {
+      e.printStackTrace();
+      throw new HadoopIllegalArgumentException (
+          "Encountered unexpected NamingException");
+    }
+    catch ( JMSException e ) {
+      e.printStackTrace();
+      throw new HadoopIllegalArgumentException (
+          "Encountered unexpected JMSException");
+    }
   }
 
   @Override
   protected void doDecode(ByteBufferDecodingState decodingState) {
-//     CoderUtil.resetOutputBuffers(decodingState.outputs,
-//         decodingState.decodeLength);
+    CoderUtil.resetOutputBuffers(decodingState.outputs,
+        decodingState.decodeLength);
+
+    // // Compose erasure and survival patterns
+    // // First compose as int
+		// int survived_cells_int  = RS_PATTERN_MASK &  ((1 << getNumDataUnits()) -1); // Bitmask for first k blocks
+		// int erasure_pattern_int	= RS_PATTERN_MASK & ~((1 << getNumDataUnits()) -1); // Bitmask for last p blocks
+    // // Then, split into bytes
+    // survival_pattern[0] = (byte) (survived_cells_int  % 16);
+    // erasure_pattern [0] = (byte) (erasure_pattern_int % 16);
+    // survival_pattern[1] = (byte) (survived_cells_int  / 16);
+    // erasure_pattern [1] = (byte) (erasure_pattern_int / 16);
+
 //     prepareDecoding(decodingState.inputs, decodingState.erasedIndexes);
 
 //     ByteBuffer[] realInputs = new ByteBuffer[getNumDataUnits()];
@@ -69,12 +125,38 @@ public class OpaeRSRawDecoder extends RawErasureDecoder {
 //     RSUtil.encodeData(gfTables, realInputs, decodingState.outputs);
   }
 
+  // Convert an array of integers into a packed bitmask
+  public int intArrayToUint16 ( int[] intArray ) {
+      // Reset output
+      int ret = 0;
+
+      // Set the target bits
+      for ( int i = 0; (i < intArray.length) && (i < getNumAllUnits()); i++ ){
+        ret |= 1 << (intArray[i]);
+      }
+
+      // Mask and return
+      return ret & RS_PATTERN_MASK;
+  }
+
   @Override
   protected void doDecode(ByteArrayDecodingState decodingState) {
-//     int dataLen = decodingState.decodeLength;
-//     CoderUtil.resetOutputBuffers(decodingState.outputs,
-//         decodingState.outputOffsets, dataLen);
-//     prepareDecoding(decodingState.inputs, decodingState.erasedIndexes);
+    int dataLen = decodingState.decodeLength;
+    CoderUtil.resetOutputBuffers(decodingState.outputs,
+        decodingState.outputOffsets, dataLen);
+
+    prepareDecoding(decodingState.inputs, decodingState.erasedIndexes);
+
+    // Compose erasure and survival patterns
+    // First compose as int
+		int survived_cells_int  = intArrayToUint16 ( decodingState.erasedIndexes );
+		int erasure_pattern_int	= intArrayToUint16 ( validIndexes  ); 
+    // Then, split into bytes
+    survival_pattern[0] = (byte) (survived_cells_int  % 16);
+    erasure_pattern [0] = (byte) (erasure_pattern_int % 16);
+    survival_pattern[1] = (byte) (survived_cells_int  / 16);
+    erasure_pattern [1] = (byte) (erasure_pattern_int / 16);
+
 
 //     byte[][] realInputs = new byte[getNumDataUnits()][];
 //     int[] realInputOffsets = new int[getNumDataUnits()];
@@ -86,19 +168,19 @@ public class OpaeRSRawDecoder extends RawErasureDecoder {
 //         decodingState.outputs, decodingState.outputOffsets);
   }
 
-//   private <T> void prepareDecoding(T[] inputs, int[] erasedIndexes) {
-//     int[] tmpValidIndexes = CoderUtil.getValidIndexes(inputs);
+  private <T> void prepareDecoding(T[] inputs, int[] erasedIndexes) {
+    int[] tmpValidIndexes = CoderUtil.getValidIndexes(inputs);
 //     if (Arrays.equals(this.cachedErasedIndexes, erasedIndexes) &&
 //         Arrays.equals(this.validIndexes, tmpValidIndexes)) {
 //       return; // Optimization. Nothing to do
 //     }
 //     this.cachedErasedIndexes =
 //             Arrays.copyOf(erasedIndexes, erasedIndexes.length);
-//     this.validIndexes =
-//             Arrays.copyOf(tmpValidIndexes, tmpValidIndexes.length);
+    this.validIndexes =
+            Arrays.copyOf(tmpValidIndexes, tmpValidIndexes.length);
 
 //     processErasures(erasedIndexes);
-//   }
+  }
 
 //   private void processErasures(int[] erasedIndexes) {
 //     this.decodeMatrix = new byte[getNumAllUnits() * getNumDataUnits()];

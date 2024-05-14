@@ -31,6 +31,7 @@ import javax.jms.JMSException;
 import java.io.IOException;
 
 import org.junit.Test;
+import org.junit.Before;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -40,26 +41,7 @@ import static org.junit.Assert.fail;
 /**
  * Test preliminary OpaeRSCoding feature.
  */
-public class TestOpaeRSRawCoding {
-
-  @Test
-  public void testNewOpaeCoderConnector() {
-    OpaeCoderConnector localOpaeCoderConnector = null;
-    try {
-      localOpaeCoderConnector = new OpaeCoderConnector();
-    }
-    catch ( NamingException e ) {
-      e.printStackTrace();
-      fail("Encountered unexpected NamingException");
-    }
-    catch ( JMSException e ) {
-      e.printStackTrace();
-      fail("Encountered unexpected JMSException");
-    }
-      
-    // Assert on class
-    assertNotNull( localOpaeCoderConnector );
-  }
+public class TestOpaeRSRawEncoder {
 
   @Test
   public void testNewOpaeRSRawEncoder() {
@@ -72,19 +54,6 @@ public class TestOpaeRSRawCoding {
 
     // Assert on class
     assertNotNull( encoder );
-  }
-
-  @Test
-  public void testNewOpaeRSRawDecoder() {
-    // Get decoder from Factory
-    int numDataUnits   = 3;
-    int numParityUnits = 2;
-    ErasureCoderOptions coderOptions = new ErasureCoderOptions(numDataUnits, numParityUnits);
-    OpaeRSRawErasureCoderFactory coderFactory = new OpaeRSRawErasureCoderFactory();
-    OpaeRSRawDecoder decoder = coderFactory.createDecoder(coderOptions);
-
-    // Assert on class
-    assertNotNull( decoder );
   }
 
   @Test
@@ -142,42 +111,7 @@ public class TestOpaeRSRawCoding {
     // ByteBuffer[] outputs = new ByteBuffer() [numParityUnits];
 
     // TODO: implement
-    fail("Unimplemented");
-  }
-
-  @Test
-  public void testDecodeByteArray() {
-    // TODO: implement
-    fail("Unimplemented");
-  }
-
-  @Test
-  public void testDecodeByteBuffer() {
-    // TODO: implement
-    fail("Unimplemented");
-  }
-
-  @Test
-  public void testIntArrayToUint16() {
-    // Get decoder from Factory
-    int numDataUnits   = 3;
-    int numParityUnits = 2;
-    ErasureCoderOptions coderOptions = new ErasureCoderOptions(numDataUnits, numParityUnits);
-    OpaeRSRawErasureCoderFactory coderFactory = new OpaeRSRawErasureCoderFactory();
-    OpaeRSRawDecoder decoder = coderFactory.createDecoder(coderOptions);
-
-    // Declare input and output
-    int intArray[] = null;
-    int pattern = 0;
-
-    // Contiguous pattern
-    intArray = new int [] { 0, 1, 2, 3, 4, 5 };
-    pattern = decoder.intArrayToUint16 ( intArray );
-    assertEquals( pattern, 0x001f );
-
-
-    // TODO: add more
-    // fail("TODO: add more test cases");
+    fail("yet unimplemented");
   }
 
 }

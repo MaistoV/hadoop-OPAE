@@ -106,8 +106,8 @@ public class OpaeCoderConnector {
     // sendMessage, ByteBufferEncodingState version
     public void sendMessageByteBuffer ( 
                        ByteBufferEncodingState encodingState,
-                       byte[] survival_pattern,
-                       byte[] erasure_pattern
+                       byte []                 survival_pattern,
+                       byte []                 erasure_pattern
                     ) throws JMSException {
         // Just convert ByteBufferEncodingState to ByteArrayEncodingState
         sendMessageByteArray (
@@ -120,25 +120,59 @@ public class OpaeCoderConnector {
     // sendMessage, ByteArrayEncodingState version
     public void sendMessageByteArray ( 
                        ByteArrayEncodingState encodingState,
-                       byte[] survival_pattern,
-                       byte[] erasure_pattern
+                       byte []                survival_pattern,
+                       byte []                erasure_pattern
                     ) throws JMSException {
+        // call explicit parameters version
+        sendMessageByteArray ( 
+                       encodingState.inputs,
+                       encodingState.encodeLength,
+                       survival_pattern,
+                       erasure_pattern
+                    );
+    }
+
+    // sendMessage, ByteArrayDecodingState version
+    public void sendMessageByteArray ( 
+                       ByteArrayDecodingState decodingState,
+                       byte [][]              realInputs,
+                       int  []                realInputOffsets, // TODO
+                       byte []                survival_pattern,
+                       byte []                erasure_pattern
+                    ) throws JMSException {
+        // call explicit parameters version
+        sendMessageByteArray ( 
+                       realInputs,
+                       decodingState.decodeLength,
+                       survival_pattern,
+                       erasure_pattern
+                    );
+    }
+
+    // explicit parameters version
+    public void sendMessageByteArray ( 
+                       byte [][] inputs,
+                       int       bufferLength,
+                       byte []   survival_pattern,
+                       byte []   erasure_pattern
+                    ) throws JMSException {
+        
         // Serialize input data
-        int numDataUnits = encodingState.inputs.length;
-        byte[] serializedByteArrayInputs = new byte [ numDataUnits * encodingState.encodeLength ];
-        for ( int i = 0; i < numDataUnits; i++ ) {
-            for ( int j = 0; j < encodingState.encodeLength; j++ ) {
-                serializedByteArrayInputs[ (i *  encodingState.encodeLength ) + j ] =
-                    encodingState.inputs[i][j];
-            }
-        }
+        int numDataUnits = inputs.length;
+        byte[] serializedByteArrayInputs = new byte [ numDataUnits * bufferLength ];
+        serializeBufferArrays ( 
+                        inputs,                     // Source
+                        serializedByteArrayInputs,  // Dest
+                        numDataUnits,               // numBuffers
+                        bufferLength                // Length of buffers
+                    );
         
         // If not in mock-mode
         if ( !useMockMode ){
             // Compose message
             requestMapMessage.setBytes("erasure_pattern" , erasure_pattern            ); // byte[] 
             requestMapMessage.setBytes("survival_pattern", survival_pattern           ); // byte[] 
-            requestMapMessage.setInt  ("cell_length"     , encodingState.encodeLength ); // int
+            requestMapMessage.setInt  ("cell_length"     , bufferLength               ); // int
             requestMapMessage.setBytes("survived_cells"  , serializedByteArrayInputs  ); // byte[]
             // Set response queue
             requestMapMessage.setJMSReplyTo( queueResponse );
@@ -153,8 +187,30 @@ public class OpaeCoderConnector {
 
     // receiveMessage, ByteArrayEncodingState version
     public void receiveMessageReplyByteArray ( ByteArrayEncodingState encodingState ) throws JMSException {
+        // call explicit parameters version
+        receiveMessageReplyByteArray ( 
+                                    encodingState.outputs,
+                                    encodingState.encodeLength
+                                );
+    }
+
+    // receiveMessage, ByteArrayDecodingState version
+    public void receiveMessageReplyByteArray ( ByteArrayDecodingState decodingState ) throws JMSException {
+        // call explicit parameters version
+        receiveMessageReplyByteArray ( 
+                                    decodingState.outputs,
+                                    decodingState.decodeLength
+                                );
+    }
+
+    // call explicit parameters version
+    public void receiveMessageReplyByteArray ( 
+                                    byte[][] outputs,
+                                    int      bufferLength
+                                ) throws JMSException {
         // Allocate buffer for serialized data
-        byte [] byteReplyData = new byte[(int) (encodingState.outputs.length * encodingState.encodeLength)];
+        int numOutputs = outputs.length;
+        byte [] byteReplyData = new byte[(int) (numOutputs * bufferLength)];
         
         // If not in mock-mode
         if ( !useMockMode ){
@@ -167,11 +223,39 @@ public class OpaeCoderConnector {
         } // useMockMode
 
         // Deserialize output data
-        int numParityUnits = encodingState.outputs.length;
-        for ( int i = 0; i < numParityUnits; i++ ) {
-            for ( int j = 0; j < encodingState.encodeLength; j++ ) {
-                // Just loopback for mock-mode
-                encodingState.outputs[i][j] = byteReplyData[ (i * encodingState.encodeLength ) + j ];
+        // Just loopback to outputs for mock-mode
+        deserializeBufferArrays ( 
+                                byteReplyData,  // Source
+                                outputs,        // Dest
+                                outputs.length, // Num buffers
+                                bufferLength    // Length of single buffer
+                            );
+    }
+
+    // Serialize data from byte[][] to byte[]
+    public void serializeBufferArrays ( 
+                                    byte [][]   sourceByteArray,
+                                    byte []     destByteArray,
+                                    int         numBuffers,
+                                    int         bufferLength
+                                ) {
+        for ( int i = 0; i < numBuffers; i++ ) {
+            for ( int j = 0; j < bufferLength; j++ ) {
+                destByteArray[ (i * bufferLength ) + j ] = sourceByteArray[i][j];
+            }
+        }
+    }
+
+    // Deserialize data from byte[] to byte[][]
+    public void deserializeBufferArrays ( 
+                                    byte []     sourceByteArray,
+                                    byte [][]   destByteArray,
+                                    int         numBuffers,
+                                    int         bufferLength
+                                ) {
+        for ( int i = 0; i < numBuffers; i++ ) {
+            for ( int j = 0; j < bufferLength; j++ ) {
+                destByteArray[i][j] = sourceByteArray[ (i * bufferLength ) + j ];
             }
         }
     }

@@ -20,7 +20,11 @@ import javax.naming.NamingException;
 
 // import java.util.Arrays;
 
-// Most of code imported from VFProxy.MockVFProxyClient
+// TODO: refactor this for directly RS configurations, ideally from a dynamic config file
+
+/**
+ *  Most of code imported from VFProxy.MockVFProxyClient
+ */
 
 public class OpaeCoderConnector {
 

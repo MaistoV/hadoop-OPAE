@@ -28,13 +28,10 @@ import java.util.Arrays;
 
 import javax.naming.NamingException;
 import javax.jms.JMSException;
+import java.io.IOException;
 
-/**
- * A raw erasure decoder in RS code scheme in pure Java in case native one
- * isn't available in some environment. Please always use native implementations
- * when possible. This new Java coder is about 5X faster than the one originated
- * from HDFS-RAID, and also compatible with the native/ISA-L coder.
- */
+// TODO: refactor this for directly RS configurations, ideally from a dynamic config file
+
 @InterfaceAudience.Private
 public class OpaeRSRawDecoder extends RawErasureDecoder {
   private int[] cachedErasedIndexes;
@@ -91,17 +88,15 @@ public class OpaeRSRawDecoder extends RawErasureDecoder {
     // Create new connector
     localOpaeCoderConnector = null;
     try {
-      localOpaeCoderConnector = new OpaeCoderConnector(); 
+      localOpaeCoderConnector = new OpaeCoderConnector();
     }
     catch ( NamingException e ) {
       e.printStackTrace();
-      throw new HadoopIllegalArgumentException (
-          "Encountered unexpected NamingException");
+      throw new HadoopIllegalArgumentException ("Caught NamingException during connection" + e);
     }
     catch ( JMSException e ) {
       e.printStackTrace();
-      throw new HadoopIllegalArgumentException (
-          "Encountered unexpected JMSException");
+      throw new HadoopIllegalArgumentException ("Caught JMSException during connection" + e);
     }
   }
 
@@ -126,7 +121,7 @@ public class OpaeRSRawDecoder extends RawErasureDecoder {
   }
 
   @Override
-  protected void doDecode(ByteArrayDecodingState decodingState) {
+  protected void doDecode(ByteArrayDecodingState decodingState) throws IOException {
     int dataLen = decodingState.decodeLength;
     CoderUtil.resetOutputBuffers(decodingState.outputs,
         decodingState.outputOffsets, dataLen);
@@ -168,8 +163,7 @@ public class OpaeRSRawDecoder extends RawErasureDecoder {
       localOpaeCoderConnector.receiveMessageReplyByteArray ( decodingState );
     }
     catch ( JMSException e ) {
-      // TODO: handle exception
-      e.printStackTrace();
+      throw new IOException("Caught JMSException during decoding" + e);
     }
     
   }

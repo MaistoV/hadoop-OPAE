@@ -25,9 +25,9 @@ import org.apache.hadoop.io.erasurecode.rawcoder.OpaeCoderConnector;
 
 import javax.naming.NamingException;
 import javax.jms.JMSException;
+import java.io.IOException;
 
 // TODO: refactor this for directly RS configurations, ideally from a dynamic config file
-// TODO: handle exceptions, in particular: NamingException and JMSException
 
 @InterfaceAudience.Private
 public class OpaeRSRawEncoder extends RawErasureEncoder {
@@ -47,8 +47,7 @@ public class OpaeRSRawEncoder extends RawErasureEncoder {
     super(coderOptions);
 
     if (getNumAllUnits() >= RSUtil.GF.getFieldSize()) {
-      throw new HadoopIllegalArgumentException(
-          "Invalid numDataUnits and numParityUnits");
+      throw new HadoopIllegalArgumentException("Invalid numDataUnits and numParityUnits");
     }
 
     // Check supported codec
@@ -62,16 +61,14 @@ public class OpaeRSRawEncoder extends RawErasureEncoder {
           ( (getNumDataUnits() ==  3) && (getNumParityUnits() == 2) )
           )
         ) {
-      throw new HadoopIllegalArgumentException(
-          "Invalid numDataUnits and numParityUnits");
+      throw new HadoopIllegalArgumentException("Invalid numDataUnits and numParityUnits");
     }
 
     // Check maximum number of units
     // NOTE: this is only limited by the current FPGA implementation,
     // and could esily be extended
     if ( getNumAllUnits() > 16 ) {
-      throw new HadoopIllegalArgumentException(
-          "numDataUnits + numParityUnits must curretly be <= 16");
+      throw new HadoopIllegalArgumentException("numDataUnits + numParityUnits must curretly be <= 16");
     }
 
     // Compose static part of encoding message
@@ -92,22 +89,20 @@ public class OpaeRSRawEncoder extends RawErasureEncoder {
 
     // Create new connector
     try {
-      localOpaeCoderConnector = new OpaeCoderConnector(); 
+      localOpaeCoderConnector = new OpaeCoderConnector();
     }
     catch ( NamingException e ) {
       e.printStackTrace();
-      throw new HadoopIllegalArgumentException (
-          "Encountered unexpected NamingException");
+      throw new HadoopIllegalArgumentException ("Caught NamingException during connection" + e);
     }
     catch ( JMSException e ) {
       e.printStackTrace();
-      throw new HadoopIllegalArgumentException (
-          "Encountered unexpected JMSException");
+      throw new HadoopIllegalArgumentException ("Caught JMSException during connection" + e);
     }
   }
 
   @Override
-  protected void doEncode(ByteBufferEncodingState encodingState) {
+  protected void doEncode(ByteBufferEncodingState encodingState) throws IOException {
     CoderUtil.resetOutputBuffers(encodingState.outputs,
         encodingState.encodeLength);
 
@@ -122,15 +117,14 @@ public class OpaeRSRawEncoder extends RawErasureEncoder {
       // Wait for response
       localOpaeCoderConnector.receiveMessageReplyByteBuffer ( encodingState );
     }
-    catch ( JMSException e ) {
-      // TODO: handle exception
-      e.printStackTrace();
+    catch ( JMSException e ) {      
+      throw new IOException("Caught JMSException during encoding" + e);
     }
   }
 
   @Override
   // TODO: figure out the difference w.r.t. WithOffsets
-  protected void doEncode(ByteArrayEncodingState encodingState) {
+  protected void doEncode(ByteArrayEncodingState encodingState) throws IOException {
     CoderUtil.resetOutputBuffers(encodingState.outputs,
         encodingState.outputOffsets,
         encodingState.encodeLength);
@@ -147,8 +141,7 @@ public class OpaeRSRawEncoder extends RawErasureEncoder {
       localOpaeCoderConnector.receiveMessageReplyByteArray ( encodingState );
     }
     catch ( JMSException e ) {
-      // TODO: handle exception
-      e.printStackTrace();
+      throw new IOException("Caught JMSException during encoding " + e);
     }
   }
 

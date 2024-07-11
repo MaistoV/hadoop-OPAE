@@ -44,6 +44,11 @@
         <version>2.0</version>
     </dependency>
     <dependency>
+        <groupId>vfproxy</groupId>
+        <artifactId>vfproxy</artifactId>
+        <version>1.0</version>
+    </dependency>
+    <dependency>
       <groupId>org.apache.hadoop.thirdparty</groupId>
       <artifactId>hadoop-shaded-protobuf_3_21</artifactId>
     </dependency>

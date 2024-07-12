@@ -110,22 +110,22 @@ public class OpaeCoderConnector {
     // sendMessage, ByteBufferEncodingState version
     public void sendMessageByteBuffer ( 
                        ByteBufferEncodingState encodingState,
-                       byte []                 survival_pattern,
-                       byte []                 erasure_pattern
+                       byte []                 survivalPattern,
+                       byte []                 erasurePattern
                     ) throws JMSException {
         // Just convert ByteBufferEncodingState to ByteArrayEncodingState
         sendMessageByteArray (
                         encodingState.convertToByteArrayState(), 
-                        erasure_pattern,
-                        survival_pattern
+                        erasurePattern,
+                        survivalPattern
                     );
     }
 
     // sendMessage, ByteArrayEncodingState version
     public void sendMessageByteArray ( 
                        ByteArrayEncodingState encodingState,
-                       byte []                survival_pattern,
-                       byte []                erasure_pattern
+                       byte []                survivalPattern,
+                       byte []                erasurePattern
                     ) throws JMSException {
         // call explicit parameters version
         sendMessageByteArray ( 
@@ -141,15 +141,15 @@ public class OpaeCoderConnector {
                        ByteArrayDecodingState decodingState,
                        byte [][]              realInputs,
                        int  []                realInputOffsets, // TODO
-                       byte []                survival_pattern,
-                       byte []                erasure_pattern
+                       byte []                survivalPattern,
+                       byte []                erasurePattern
                     ) throws JMSException {
         // call explicit parameters version
         sendMessageByteArray ( 
                        realInputs,
                        decodingState.decodeLength,
-                       survival_pattern,
-                       erasure_pattern
+                       survivalPattern,
+                       erasurePattern
                     );
     }
 
@@ -157,8 +157,8 @@ public class OpaeCoderConnector {
     public void sendMessageByteArray ( 
                        byte [][] inputs,
                        int       bufferLength,
-                       byte []   survival_pattern,
-                       byte []   erasure_pattern
+                       byte []   survivalPattern,
+                       byte []   erasurePattern
                     ) throws JMSException {
         
         // Serialize input data
@@ -174,8 +174,8 @@ public class OpaeCoderConnector {
         // If not in mock-mode
         if ( !useMockMode ){
             // Compose message
-            requestMapMessage.setBytes("erasure_pattern" , erasure_pattern            ); // byte[] 
-            requestMapMessage.setBytes("survival_pattern", survival_pattern           ); // byte[] 
+            requestMapMessage.setBytes("erasurePattern" , erasurePattern            ); // byte[] 
+            requestMapMessage.setBytes("survivalPattern", survivalPattern           ); // byte[] 
             requestMapMessage.setInt  ("cell_length"     , bufferLength               ); // int
             requestMapMessage.setBytes("survived_cells"  , serializedByteArrayInputs  ); // byte[]
             // Set response queue

@@ -41,8 +41,8 @@ public class OpaeRSRawDecoder extends RawErasureDecoder {
 
   // This is constant across calls, for a single EC policy
   private final int RS_PATTERN_MASK;
-  private byte[] survival_pattern;
-  private byte[] erasure_pattern ;
+  private byte[] survivalPattern;
+  private byte[] erasurePattern ;
 
   // Connctor to JMS provider
   OpaeCoderConnector localOpaeCoderConnector;
@@ -58,7 +58,7 @@ public class OpaeRSRawDecoder extends RawErasureDecoder {
     // NOTE: these must only match with available bitstreams, new ones can be generated
     if ( !(
           // 10:4
-          ( (getNumDataUnits() == 10) && (getNumParityUnits() == 4) ) ||
+          // ( (getNumDataUnits() == 10) && (getNumParityUnits() == 4) ) || // Unsupported for now
           // 6:3
           ( (getNumDataUnits() ==  6) && (getNumParityUnits() == 3) ) ||
           // 3:2
@@ -82,8 +82,8 @@ public class OpaeRSRawDecoder extends RawErasureDecoder {
     RS_PATTERN_MASK = (1 << getNumAllUnits()) -1;
     // Allocate space for erasure and survival patterns
     // NOTE: this relies on getNumAllUnits() < 16
-    survival_pattern = new byte[2]; // 16 bits
-    erasure_pattern  = new byte[2]; // 16 bits
+    survivalPattern = new byte[2]; // 16 bits
+    erasurePattern  = new byte[2]; // 16 bits
 
     // Create new connector
     localOpaeCoderConnector = null;
@@ -131,14 +131,14 @@ public class OpaeRSRawDecoder extends RawErasureDecoder {
 
     // Compose erasure and survival patterns
     // First compose as int
-		int erasure_pattern_int = intArrayToUint16 ( decodingState.erasedIndexes );
+		int erasurePattern_int = intArrayToUint16 ( decodingState.erasedIndexes );
 		int survived_cells_int	= intArrayToUint16 ( validIndexes                ); 
 
     // Then, split into bytes
-    survival_pattern[0] = (byte) (survived_cells_int  % 16);
-    erasure_pattern [0] = (byte) (erasure_pattern_int % 16);
-    survival_pattern[1] = (byte) (survived_cells_int  / 16);
-    erasure_pattern [1] = (byte) (erasure_pattern_int / 16);
+    survivalPattern[0] = (byte) (survived_cells_int  % 16);
+    erasurePattern [0] = (byte) (erasurePattern_int % 16);
+    survivalPattern[1] = (byte) (survived_cells_int  / 16);
+    erasurePattern [1] = (byte) (erasurePattern_int / 16);
 
     // Prepare inputs
     byte[][] realInputs = new byte[getNumDataUnits()][];
@@ -155,8 +155,8 @@ public class OpaeRSRawDecoder extends RawErasureDecoder {
                                 decodingState,
                                 realInputs,
                                 realInputOffsets,
-                                erasure_pattern,
-                                survival_pattern
+                                erasurePattern,
+                                survivalPattern
                               );
 
       // Wait for response

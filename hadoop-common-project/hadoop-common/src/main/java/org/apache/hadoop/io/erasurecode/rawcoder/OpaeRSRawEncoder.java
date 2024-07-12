@@ -37,8 +37,8 @@ public class OpaeRSRawEncoder extends RawErasureEncoder {
    */
 
   // Static of encoding message
-  byte[] survival_pattern;
-  byte[] erasure_pattern;
+  byte[] survivalPattern;
+  byte[] erasurePattern;
 
   // Connctor to JMS provider
   OpaeCoderConnector localOpaeCoderConnector;
@@ -110,8 +110,8 @@ public class OpaeRSRawEncoder extends RawErasureEncoder {
       // Send new message
       localOpaeCoderConnector.sendMessageByteBuffer (
                                 encodingState, 
-                                erasure_pattern,
-                                survival_pattern
+                                erasurePattern,
+                                survivalPattern
                               );
 
       // Wait for response

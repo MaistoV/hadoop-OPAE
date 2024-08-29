@@ -1,0 +1,42 @@
+<configuration>
+    <property>
+        <name>dfs.datanode.vfp-client.sbdf-array</name>
+        <value>0000:8a:00.1</value>
+        <description>
+            Available VFPs addresses.
+        </description>
+        <tag>VFP</tag>
+    </property>
+    <property>
+        <name>dfs.datanode.vfp-client.jms.receiveTimeoutMillisec</name>
+        <value>10000</value>
+        <description>
+            VFP message receive timeout in milliseconds. After this, the VFP Client will consider the message lost.
+        </description>
+        <tag>VFP</tag>
+    </property>
+    <property>
+        <name>dfs.datanode.vfp-client.jms.persistentMode</name>
+        <value>true</value>
+        <description>
+            Enable/disable JMS messages persistency.
+        </description>
+        <tag>VFP</tag>
+    </property>
+    <property>
+        <name>dfs.datanode.vfp-client.jms.msgPriority</name>
+        <value>9</value>
+        <description>
+            JMS message priority for VFP Client, 9 is max.
+        </description>
+        <tag>VFP</tag>
+    </property>
+    <property>
+        <name>dfs.datanode.vfp-client.jms.msgTimeToLiveMillisec</name>
+        <value>10000</value>
+        <description>
+            Time-to-live in milliseconds for non-persistent messages.
+        </description>
+        <tag>VFP</tag>
+    </property>
+</configuration>

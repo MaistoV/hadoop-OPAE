@@ -1,0 +1,10 @@
+<configuration>
+    <property>
+        <name>dfs.datanode.vfp-client.sbdf-array</name>
+        <value>${env.SBDFs_COMMA_SEPARATED}</value>
+        <description>
+        Available VFs addresses
+        </description>
+        <tag>VFP</tag>
+    </property>
+</configuration>

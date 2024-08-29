@@ -2,6 +2,9 @@ package org.apache.hadoop.io.erasurecode.rawcoder;
 
 import java.util.Random;
 import java.util.Hashtable;
+import java.util.Arrays;
+import org.apache.commons.lang3.NotImplementedException;
+import java.lang.IllegalStateException;
 
 // JMS 
 import javax.jms.JMSException;
@@ -18,49 +21,87 @@ import javax.naming.Context;
 import javax.naming.InitialContext;
 import javax.naming.NamingException;
 
-// import java.util.Arrays;
+import org.apache.hadoop.io.erasurecode.rawcoder.OpaeVFPClientConfiguration;
 
-// TODO: refactor this for directly RS configurations, ideally from a dynamic config file
+// Import vfproxy
+import vfproxy.VFProxyClient;
 
-/**
- *  Most of code imported from VFProxy.MockVFProxyClient
- */
-
+// Spawn a new Connection and Session
+// NOTE: It is not possible to perform integration testing of JMS(ActiveMQ) in JUnit, 
+//  so just use some mock logic during unit testing.
+//  This is a dirty workaround, **meant to be removed in the future**. 
+//  This current solution requires snippets of code below to be be tested externally.
 public class OpaeCoderConnector {
 
-    // TODO: export hard-coded parameters here, ideally in a dynamic config file
-    private static String jndiFactoryInital = "org.apache.activemq.jndi.ActiveMQInitialContextFactory";
-    private static String jndiProviderURL = "tcp://127.0.0.1:61616";
-    private static String [] PCIesbdfArray = { "0000:01:00.1" };
-    // private static String [] PCIesbdfArray = {
-    //                                             "0000:01:00.1",
-    //                                             "0000:01:00.2",
-    //                                             "0000:01:00.3",
-    //                                             "0000:01:00.4",
-    //                                             "0000:01:00.5"
-    //                                         };
-
-    // JMS dynamic context
-    private Context         context;
-    private QueueSender     sender;
-    private QueueReceiver   receiver;
-    private QueueSession    session;
-    private MapMessage      requestMapMessage;
-    private Queue           queueRequest ;
-    private Queue           queueResponse;
+    // RS[K:P] configurations
+    private final int numDataUnits;
+    private final int numParityUnits;
+    // Default values
+    private static final int numDataUnitsDefault = 3;
+    private static final int numParityUnitsDefault = 2;
 
     // Mock-mode test
     private final boolean useMockMode;
-    // Mock-mode message buffer
-    Hashtable<String, byte[]> messageMockHashtable;
 
-    // Spawn a new Connection and Session
-    // NOTE: can't seem to test deploylevel complexity JMS(ActiveMQ) in JUnit, so just use some mock logic during testing.
-    //  This is a dirty workaround, **meant to be removed in the future**. 
-    //  This current solution requires snippets of code below to be be tested externally.
-    //  W.r.t. to overhead in deplopy: since useMockMode is "final", JIT should take care of removing the mock code on 
-    //  construction.
-    public OpaeCoderConnector () throws NamingException, JMSException {
+    /////////////////////////////////////////////
+    // VFP Client and configuration parameters //
+    /////////////////////////////////////////////
+    // VFP Client object
+    private VFProxyClient vfpClient = null;
+    // Available VFs addresses
+    private static String [] sbdfArray;
+    // Message timeout
+    private final int receiveTimeoutMillisec;
+    private final boolean persistentMode;
+    private final int msgPriority;
+    private final int msgTimeToLiveMillisec;
+    // Default values
+    private final int receiveTimeoutMillisecDefault = 10000; // 10s
+    private final boolean persistentModeDefault = true;
+    private final int msgPriorityModeDefault = 9; // Max
+    private final int msgTimeToLiveMillisecDefault = 1000; // 10s
+    // Key strings for configurations
+    public final String sbdfArrayConfString = "dfs.datanode.vfp-client.sbdf-array";
+    public final String receiveTimeoutMillisecConfString = "dfs.datanode.vfp-client.jms.receiveTimeoutMillisec";
+    public final String persistentModeConfString = "dfs.datanode.vfp-client.jms.persistentMode";
+    public final String msgPriorityConfString = "dfs.datanode.vfp-client.jms.msgPriority";
+    public final String msgTimeToLiveMillisecConfString = "dfs.datanode.vfp-client.jms.msgTimeToLiveMillisec";
+
+    // No-args constructor
+    public OpaeCoderConnector () throws NamingException, JMSException, IllegalStateException {
+        // Use defaults
+        this (
+                numDataUnitsDefault,
+                numParityUnitsDefault
+            );
+    }
+
+    // Constructor with arguments
+    public OpaeCoderConnector (
+                            int rsK,
+                            int rsP
+                        ) throws NamingException, JMSException, IllegalStateException {
+
+        // Init attributes
+        numDataUnits   = rsK;
+        numParityUnits = rsP;
+
+        ///////////////////////////////////////
+        // Get parameters from configuration //
+        ///////////////////////////////////////
+        OpaeVFPClientConfiguration conf = new OpaeVFPClientConfiguration( true );
+        sbdfArray = conf.getStrings(sbdfArrayConfString);
+        if ( sbdfArray == null ) {
+            throw new IllegalStateException("Parsed sbdfArray is null");
+        }
+        receiveTimeoutMillisec = conf.getInt(receiveTimeoutMillisecConfString, receiveTimeoutMillisecDefault);
+        persistentMode         = conf.getBoolean(persistentModeConfString, persistentModeDefault);
+        msgPriority            = conf.getInt(msgPriorityConfString, msgPriorityModeDefault);
+        msgTimeToLiveMillisec  = conf.getInt(msgTimeToLiveMillisecConfString, msgTimeToLiveMillisecDefault);
+
+        ////////////////////////
+        // Mock mode handling //
+        ////////////////////////
         // Init mock mode flag based on environment variable 
         if ( System.getenv("HADOOP_MAVEN_TEST_USE_MOCK") != null ) {
             useMockMode = true;
@@ -70,207 +111,199 @@ public class OpaeCoderConnector {
 
         // If not in mock mode
         if ( !useMockMode ) {
-            // Select a VF randomly
-            Random random = new Random();
-            String sbdfString = PCIesbdfArray [ random.nextInt(PCIesbdfArray.length) ];
-            // Connect to provider
-            Hashtable <String, String> providerHashtable = new Hashtable <String, String>();
-            providerHashtable.put("java.naming.factory.initial", jndiFactoryInital );
-            providerHashtable.put("java.naming.provider.url"   , jndiProviderURL   );
+            // Instantiate VFP Client
+            vfpClient = new VFProxyClient (
+                                        rsK,
+                                        rsP,
+                                        sbdfArray,
+                                        receiveTimeoutMillisec,
+                                        persistentMode,
+                                        msgPriority,
+                                        msgTimeToLiveMillisec
+                                    );
+        } // !useMockMode
+    }
 
-            // Queues names
-            providerHashtable.put("queue.Request"  + sbdfString, "Request"  + sbdfString );
-            providerHashtable.put("queue.Response" + sbdfString, "Response" + sbdfString );
-            
-            // Create context
-            Context context = new InitialContext ( providerHashtable );
-            // Lookup queues
-            queueRequest  = (Queue) context.lookup("Request"  + sbdfString );
-            queueResponse = (Queue) context.lookup("Response" + sbdfString );
-            // Lookup (Factory) and start Connection
-            QueueConnectionFactory connectionFactory = (QueueConnectionFactory)context.lookup("QueueConnectionFactory");
-            QueueConnection connection = connectionFactory.createQueueConnection();
-            connection.start();
-            
-            // Create single-threaded session
-            // TODO: also consider tarnsacted Sessions, e.g.: session = connection.createQueueSession(true, 0);
-            session = connection.createQueueSession(false, Session.AUTO_ACKNOWLEDGE);
-            requestMapMessage = session.createMapMessage();
-            
-            // Setup Sender for queueRequest
-            sender = session.createSender(queueRequest);
-            // Setup Receiver for queueResponse
-            receiver = session.createReceiver(queueResponse);
+    // Raw byte[] version
+    // TODO: figure out input/outputOffsets
+    // - Wrap VFProxyClient.callToVFProxy()
+    // - Add mock logic for JUnit testing
+    public byte [] callToVFProxy ( 
+                            int erasurePattern,
+                            int survivalPattern,
+                            int bufferLength,
+                            byte[] survivedCells
+                    ) throws JMSException {
+        // Return data
+        byte[] byteReplyData = null;
+
+        // If not in mock-mode
+        if ( !useMockMode ){
+            // Call to VFP
+            byteReplyData = vfpClient.callToVFProxy (
+                                        erasurePattern,
+                                        survivalPattern,
+                                        bufferLength,
+                                        survivedCells
+                                    );       
         } // !useMockMode
         else { // useMockMode
-            messageMockHashtable = new Hashtable<String, byte[]> ();
-        } // !useMockMode
+            // Just loop back
+            // NOTE: this works under the assumption of numParityUnits <= numDataUnits,
+            //          which always holds any EC in general
+            byteReplyData = Arrays.copyOf(survivedCells, bufferLength * numParityUnits);
+        } // useMockMode
+
+        return byteReplyData;
+
     }
 
-    // sendMessage, ByteBufferEncodingState version
-    public void sendMessageByteBuffer ( 
-                       ByteBufferEncodingState encodingState,
-                       byte []                 survivalPattern,
-                       byte []                 erasurePattern
-                    ) throws JMSException {
-        // Just convert ByteBufferEncodingState to ByteArrayEncodingState
-        sendMessageByteArray (
-                        encodingState.convertToByteArrayState(), 
-                        erasurePattern,
-                        survivalPattern
-                    );
+    // ByteArrayEncodingState version, wraps raw byte[] version
+    public void callToVFProxy ( 
+                            int erasurePattern,
+                            int survivalPattern,
+                            ByteBufferEncodingState encodingState
+                        ) throws JMSException {
+        // TODO
+        throw new NotImplementedException();
+
+        // // Return data
+        // byte [] byteReplyData = null;
+
+        // // Serialize input data
+        // int bufferLength = encodingState.encodeLength;
+
+        // // // Call raw version
+        // byteReplyData = callToVFProxy ( 
+        //                 erasurePattern,
+        //                 survivalPattern,
+        //                 bufferLength,
+        //                 serializedByteArrayInputs
+        //             );
+
+        // // (?)Deserialize output data
+        // // ...
     }
 
-    // sendMessage, ByteArrayEncodingState version
-    public void sendMessageByteArray ( 
-                       ByteArrayEncodingState encodingState,
-                       byte []                survivalPattern,
-                       byte []                erasurePattern
-                    ) throws JMSException {
-        // call explicit parameters version
-        sendMessageByteArray ( 
-                       encodingState.inputs,
-                       encodingState.encodeLength,
-                       survival_pattern,
-                       erasure_pattern
-                    );
-    }
+    // TODO: figure out outputOffsets
+    // ByteArray version, wraps raw byte[] version
+    public void callToVFProxy ( 
+                            int erasurePattern,
+                            int survivalPattern,
+                            ByteArrayEncodingState encodingState
+                        ) throws JMSException {
+        // Return data
+        byte [] byteReplyData = null;
 
-    // sendMessage, ByteArrayDecodingState version
-    public void sendMessageByteArray ( 
-                       ByteArrayDecodingState decodingState,
-                       byte [][]              realInputs,
-                       int  []                realInputOffsets, // TODO
-                       byte []                survivalPattern,
-                       byte []                erasurePattern
-                    ) throws JMSException {
-        // call explicit parameters version
-        sendMessageByteArray ( 
-                       realInputs,
-                       decodingState.decodeLength,
-                       survivalPattern,
-                       erasurePattern
-                    );
-    }
-
-    // explicit parameters version
-    public void sendMessageByteArray ( 
-                       byte [][] inputs,
-                       int       bufferLength,
-                       byte []   survivalPattern,
-                       byte []   erasurePattern
-                    ) throws JMSException {
-        
         // Serialize input data
-        int numDataUnits = inputs.length;
+        // int numDataUnits = encodingState.inputs.length;
+        int bufferLength = encodingState.encodeLength;
         byte[] serializedByteArrayInputs = new byte [ numDataUnits * bufferLength ];
-        serializeBufferArrays ( 
-                        inputs,                     // Source
+        serializeArrayOfArraysToArray ( 
+                        encodingState.inputs,       // Source
                         serializedByteArrayInputs,  // Dest
                         numDataUnits,               // numBuffers
                         bufferLength                // Length of buffers
                     );
-        
-        // If not in mock-mode
-        if ( !useMockMode ){
-            // Compose message
-            requestMapMessage.setBytes("erasurePattern" , erasurePattern            ); // byte[] 
-            requestMapMessage.setBytes("survivalPattern", survivalPattern           ); // byte[] 
-            requestMapMessage.setInt  ("cell_length"     , bufferLength               ); // int
-            requestMapMessage.setBytes("survived_cells"  , serializedByteArrayInputs  ); // byte[]
-            // Set response queue
-            requestMapMessage.setJMSReplyTo( queueResponse );
-            // Send
-            sender.send( requestMapMessage );
-        } // !useMockMode
-        else { // useMockMode
-            // Just mock message passing by local Hashmap
-            messageMockHashtable.put("survived_cells"  , serializedByteArrayInputs  ); // byte[]
-        } // useMockMode
+
+        // Call raw version
+        byteReplyData = callToVFProxy ( 
+                        erasurePattern,
+                        survivalPattern,
+                        bufferLength,
+                        serializedByteArrayInputs
+                    );
+
+        // (?)Deserialize output data
+        deserializeArrayToArrayOfArrays ( 
+                                byteReplyData,                // Source
+                                encodingState.outputs,        // Dest
+                                encodingState.outputs.length, // Num buffers
+                                bufferLength                  // Length of single buffer
+                            );        
     }
 
-    // receiveMessage, ByteArrayEncodingState version
-    public void receiveMessageReplyByteArray ( ByteArrayEncodingState encodingState ) throws JMSException {
-        // call explicit parameters version
-        receiveMessageReplyByteArray ( 
-                                    encodingState.outputs,
-                                    encodingState.encodeLength
-                                );
-    }
-
-    // receiveMessage, ByteArrayDecodingState version
-    public void receiveMessageReplyByteArray ( ByteArrayDecodingState decodingState ) throws JMSException {
-        // call explicit parameters version
-        receiveMessageReplyByteArray ( 
-                                    decodingState.outputs,
-                                    decodingState.decodeLength
-                                );
-    }
-
-    // call explicit parameters version
-    public void receiveMessageReplyByteArray ( 
-                                    byte[][] outputs,
-                                    int      bufferLength
-                                ) throws JMSException {
-        // Allocate buffer for serialized data
-        int numOutputs = outputs.length;
-        byte [] byteReplyData = new byte[(int) (numOutputs * bufferLength)];
-        
-        // If not in mock-mode
-        if ( !useMockMode ){
-            BytesMessage replyBytesMessage = replyBytesMessage = (BytesMessage) receiver.receive();
-            replyBytesMessage.readBytes( byteReplyData );
-        } // !useMockMode
-        else { // useMockMode
-            // Just mock message passing by local Hashmap
-            byteReplyData = messageMockHashtable.get("survived_cells"); // byte[]
-        } // useMockMode
-
-        // Deserialize output data
-        // Just loopback to outputs for mock-mode
-        deserializeBufferArrays ( 
-                                byteReplyData,  // Source
-                                outputs,        // Dest
-                                outputs.length, // Num buffers
-                                bufferLength    // Length of single buffer
-                            );
-    }
-
+    //////////////
+    // Ulitites //
+    //////////////
     // Serialize data from byte[][] to byte[]
-    public void serializeBufferArrays ( 
+    private void serializeArrayOfArraysToArray ( 
                                     byte [][]   sourceByteArray,
                                     byte []     destByteArray,
                                     int         numBuffers,
                                     int         bufferLength
                                 ) {
         for ( int i = 0; i < numBuffers; i++ ) {
-            for ( int j = 0; j < bufferLength; j++ ) {
-                destByteArray[ (i * bufferLength ) + j ] = sourceByteArray[i][j];
-            }
+            // for ( int j = 0; j < bufferLength; j++ ) {
+            //     destByteArray[ (i * bufferLength ) + j ] = sourceByteArray[i][j];
+            // }
+            // TODO: untested
+            // Copy bufferLength bytes
+            System.arraycopy (
+                // src
+                sourceByteArray[i],
+                // srcIndex
+                0,
+                // dest
+                destByteArray,
+                // destIndex
+                i * bufferLength,
+                // len
+                bufferLength
+            );
         }
     }
 
     // Deserialize data from byte[] to byte[][]
-    public void deserializeBufferArrays ( 
+    private void deserializeArrayToArrayOfArrays ( 
                                     byte []     sourceByteArray,
                                     byte [][]   destByteArray,
                                     int         numBuffers,
                                     int         bufferLength
                                 ) {
         for ( int i = 0; i < numBuffers; i++ ) {
-            for ( int j = 0; j < bufferLength; j++ ) {
-                destByteArray[i][j] = sourceByteArray[ (i * bufferLength ) + j ];
-            }
+            // for ( int j = 0; j < bufferLength; j++ ) {
+            //     destByteArray[i][j] = sourceByteArray[ (i * bufferLength) + j ];
+            // }
+            // TODO: untested
+            // Copy bufferLength bytes
+            System.arraycopy (
+                // src
+                sourceByteArray,
+                // srcIndex
+                i * bufferLength,
+                // dest
+                destByteArray[i],
+                // destIndex
+                0,
+                // len
+                bufferLength
+            );
         }
     }
 
-    // receiveMessage, ByteBufferEncodingState version
-    public void receiveMessageReplyByteBuffer( ByteBufferEncodingState encodingState ) throws JMSException {
-        // NOTE: This is really unefficient!
-        ByteArrayEncodingState byteArrayEncodingState = encodingState.convertToByteArrayState();
-        // Just convert to ByteArrayEncodingState
-        receiveMessageReplyByteArray ( byteArrayEncodingState );
-        // and back to ByteBufferEncodingState
-        encodingState = byteArrayEncodingState.convertToByteBufferState(); 
+    /////////////
+    // Getters //
+    /////////////
+    public int getNumDataUnits() {
+        return numDataUnits;
+    }
+    public int getNumParityUnits() {
+        return numParityUnits;
+    }
+    public String [] getSbdfArray() {
+        return sbdfArray;
+    }
+    public int getReceiveTimeoutMillisecs() {
+        return receiveTimeoutMillisec;
+    }
+    public boolean getPersistentMode() {
+        return persistentMode;
+    }
+    public int getMsgPriority() {
+        return msgPriority;
+    }
+    public int getTimeToLiveMillisec() {
+        return msgTimeToLiveMillisec;
     }
 }

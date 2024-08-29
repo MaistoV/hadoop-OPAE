@@ -62,3 +62,15 @@ report.html
 
 
 .mvn
+
+##########
+# Custom #
+##########
+# Logs
+*.log*
+
+# profiling
+*.hprof
+
+# CRCs
+*crc

@@ -49,6 +49,12 @@ public class NativeRSRawEncoder extends AbstractNativeRawEncoder {
   protected void performEncodeImpl(
           ByteBuffer[] inputs, int[] inputOffsets, int dataLen,
           ByteBuffer[] outputs, int[] outputOffsets) throws IOException {
+          System.out.println( 
+                  "Entering  " +
+                  this.getClass().getSimpleName() + "." +
+                  new Object() {}.getClass().getEnclosingMethod().getName() + 
+                  ": dataLen: " + dataLen
+                );
     encodeImpl(inputs, inputOffsets, dataLen, outputs, outputOffsets);
   }
 

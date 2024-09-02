@@ -899,6 +899,7 @@ public class TestDFSIO implements Tool {
     }
     LOG.info("baseDir = " + getBaseDir(config));
     
+    LOG.info("compressionClass = " + compressionClass);
     if (compressionClass != null) {
       config.set("test.io.compression.class", compressionClass);
       LOG.info("compressionClass = " + compressionClass);
@@ -1124,7 +1125,7 @@ public class TestDFSIO implements Tool {
 
     double med = rate / 1000 / tasks;
     double stdDev = Math.sqrt(Math.abs(sqrate / 1000 / tasks - med*med));
-    DecimalFormat df = new DecimalFormat("#.##");
+    DecimalFormat df = new DecimalFormat("#.####");
     String resultLines[] = {
         "----- TestDFSIO ----- : " + testType,
         "            Date & time: " + new Date(System.currentTimeMillis()),

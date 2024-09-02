@@ -179,22 +179,22 @@ public final class CodecUtil {
   private static RawErasureEncoder createRawEncoderWithFallback(
       Configuration conf, String codecName, ErasureCoderOptions coderOptions) {
 
-    System.out.println("[createRawEncoderWithFallback] Entering createRawEncoderWithFallback.");
-    System.out.println("[createRawEncoderWithFallback] codecName " + codecName );
-    System.out.println("[createRawEncoderWithFallback] coderOptions " + coderOptions );
-    LOG.warn("[createRawEncoderWithFallback] Entering createRawEncoderWithFallback.");
-    LOG.warn("[createRawEncoderWithFallback] codecName " + codecName );
-    LOG.warn("[createRawEncoderWithFallback] coderOptions " + coderOptions );
+    // LOG.warn("[createRawEncoderWithFallback] Entering createRawEncoderWithFallback.");
+    // LOG.warn("[createRawEncoderWithFallback] codecName " + codecName );
+    // LOG.warn("[createRawEncoderWithFallback] coderOptions " + coderOptions );
 
     boolean nativeEncoderEnabled = conf.getBoolean(IO_ERASURECODE_CODEC_NATIVE_ENABLED_KEY,
         IO_ERASURECODE_CODEC_NATIVE_ENABLED_DEFAULT);
 
-    LOG.warn("[createRawEncoderWithFallback] nativeEncoderEnabled " + nativeEncoderEnabled);
+    // LOG.warn("[createRawEncoderWithFallback] nativeEncoderEnabled " + nativeEncoderEnabled);
 
     String[] rawCoderNames = getRawCoderNames(conf, codecName);
-    LOG.warn("[createRawEncoderWithFallback] rawCoderNames " + rawCoderNames);
+    // LOG.warn("[createRawEncoderWithFallback] rawCoderNames:");
+    // for ( String name : rawCoderNames ) {
+    //   LOG.warn("[createRawEncoderWithFallback] " + name );
+    // }
     for (String rawCoderName : rawCoderNames) {
-      LOG.warn("[createRawEncoderWithFallback] parsing rawCoderName " + rawCoderName);
+      // LOG.warn("[createRawEncoderWithFallback] parsing rawCoderName " + rawCoderName);
 
       if (!nativeEncoderEnabled && rawCoderName.contains("native")) {
         LOG.warn("Disable the encoder with ISA-L.");
@@ -205,7 +205,6 @@ public final class CodecUtil {
           RawErasureCoderFactory fact = createRawCoderFactory(
               rawCoderName, codecName);
           
-          System.out.println("[createRawEncoderWithFallback] createRawCoderFactory returned " + fact);
           LOG.warn("[createRawEncoderWithFallback] createRawCoderFactory returned " + fact );
 
           return fact.createEncoder(coderOptions);
@@ -224,6 +223,9 @@ public final class CodecUtil {
 
   private static RawErasureDecoder createRawDecoderWithFallback(
       Configuration conf, String codecName, ErasureCoderOptions coderOptions) {
+
+    LOG.warn("[createRawDecoderWithFallback] Entering createRawDecoderWithFallback.");
+
     boolean nativeDecoderEnabled = conf.getBoolean(IO_ERASURECODE_CODEC_NATIVE_ENABLED_KEY,
         IO_ERASURECODE_CODEC_NATIVE_ENABLED_DEFAULT);
     String[] coders = getRawCoderNames(conf, codecName);

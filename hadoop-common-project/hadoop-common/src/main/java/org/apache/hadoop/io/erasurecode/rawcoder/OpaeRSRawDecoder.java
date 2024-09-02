@@ -22,6 +22,11 @@ import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.io.erasurecode.ErasureCoderOptions;
 import org.apache.hadoop.io.erasurecode.rawcoder.util.DumpUtil;
 import org.apache.hadoop.io.erasurecode.rawcoder.OpaeCoderConnector;
+import org.apache.commons.lang3.NotImplementedException;
+
+// Logger
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.nio.ByteBuffer;
 import java.util.Arrays;
@@ -34,6 +39,8 @@ import java.io.IOException;
 
 @InterfaceAudience.Private
 public class OpaeRSRawDecoder extends RawErasureDecoder {
+  private static final Logger LOG = LoggerFactory.getLogger(OpaeRSRawDecoder.class);
+
   private int[] cachedErasedIndexes;
   private int[] validIndexes;
   private int numErasedDataUnits;
@@ -41,8 +48,6 @@ public class OpaeRSRawDecoder extends RawErasureDecoder {
 
   // This is constant across calls, for a single EC policy
   private final int RS_PATTERN_MASK;
-  private byte[] survivalPattern;
-  private byte[] erasurePattern ;
 
   // Connctor to JMS provider
   OpaeCoderConnector localOpaeCoderConnector;
@@ -65,8 +70,8 @@ public class OpaeRSRawDecoder extends RawErasureDecoder {
           ( (getNumDataUnits() ==  3) && (getNumParityUnits() == 2) )
           )
         ) {
-      throw new HadoopIllegalArgumentException(
-          "Invalid numDataUnits and numParityUnits");
+        throw new HadoopIllegalArgumentException("Invalid numDataUnits (" + getNumDataUnits() + ") and numParityUnits (" + getNumParityUnits() + ")");
+
     }
 
     // Check maximum number of units
@@ -80,15 +85,15 @@ public class OpaeRSRawDecoder extends RawErasureDecoder {
     // Compose static part of encoding message
     // Init mask
     RS_PATTERN_MASK = (1 << getNumAllUnits()) -1;
-    // Allocate space for erasure and survival patterns
-    // NOTE: this relies on getNumAllUnits() < 16
-    survivalPattern = new byte[2]; // 16 bits
-    erasurePattern  = new byte[2]; // 16 bits
 
     // Create new connector
     localOpaeCoderConnector = null;
     try {
-      localOpaeCoderConnector = new OpaeCoderConnector();
+      int oneMB = 1048576; // 1024 * 1024;
+      localOpaeCoderConnector = new OpaeCoderConnector(
+                                                      getNumDataUnits(),    // rsK
+                                                      getNumParityUnits()   // rsP
+                                                    );
     }
     catch ( NamingException e ) {
       e.printStackTrace();
@@ -116,55 +121,57 @@ public class OpaeRSRawDecoder extends RawErasureDecoder {
 
   @Override
   protected void doDecode(ByteBufferDecodingState decodingState) {
+    LOG.info("Entering doDecode<ByteBufferDecodingState>");
     // CoderUtil.resetOutputBuffers(decodingState.outputs,
     //     decodingState.decodeLength);
+      LOG.info("[doDecode] Calling callToVFProxy");
+      // LOG.info("[doDecode]  erasurePattern  0x" + String.format("%04x", erasurePattern   ) );
+      // LOG.info("[doDecode]  survivalPattern  0x" + String.format("%04x", survivalPattern   ));
+      LOG.info("[doDecode]  encodingState.encodeLength: " + decodingState.decodeLength );
+    throw new NotImplementedException();
   }
 
   @Override
   protected void doDecode(ByteArrayDecodingState decodingState) throws IOException {
-    int dataLen = decodingState.decodeLength;
-    CoderUtil.resetOutputBuffers(decodingState.outputs,
-        decodingState.outputOffsets, dataLen);
+    LOG.info("Entering doDecode<ByteArrayDecodingState>");
+    throw new NotImplementedException();
+    
+    // int dataLen = decodingState.decodeLength;
+    // CoderUtil.resetOutputBuffers(decodingState.outputs,
+    //     decodingState.outputOffsets, dataLen);
 
-    // Init validIndexes by picking up non-null values
-    prepareDecoding(decodingState.inputs, decodingState.erasedIndexes);
+    // // Init validIndexes by picking up non-null values
+    // prepareDecoding(decodingState.inputs, decodingState.erasedIndexes);
 
-    // Compose erasure and survival patterns
-    // First compose as int
-		int erasurePattern_int = intArrayToUint16 ( decodingState.erasedIndexes );
-		int survived_cells_int	= intArrayToUint16 ( validIndexes                ); 
+    // // Compose erasure and survival patterns
+		// int erasurePattern  = intArrayToUint16 ( decodingState.erasedIndexes );
+		// int survivalPattern	= intArrayToUint16 ( validIndexes                ); 
 
-    // Then, split into bytes
-    survivalPattern[0] = (byte) (survived_cells_int  % 16);
-    erasurePattern [0] = (byte) (erasurePattern_int % 16);
-    survivalPattern[1] = (byte) (survived_cells_int  / 16);
-    erasurePattern [1] = (byte) (erasurePattern_int / 16);
+    // // Prepare inputs
+    // byte[][] realInputs = new byte[getNumDataUnits()][];
+    // int[] realInputOffsets = new int[getNumDataUnits()];
+    // for (int i = 0; i < getNumDataUnits(); i++) {
+    //   realInputs[i] = decodingState.inputs[validIndexes[i]];
+    //   realInputOffsets[i] = decodingState.inputOffsets[validIndexes[i]];
+    // }
+    
+    // // TODO: combine realInputs + realInputsOffsets -> realInputs
+    // // NOTE: refere to RSUtil.java:encodeData()
+    // // NOTE: refere to jni_rs_decoder.c -> jni_common.c:getInputs()
+    // // TBD
 
-    // Prepare inputs
-    byte[][] realInputs = new byte[getNumDataUnits()][];
-    int[] realInputOffsets = new int[getNumDataUnits()];
-    for (int i = 0; i < getNumDataUnits(); i++) {
-      realInputs[i] = decodingState.inputs[validIndexes[i]];
-      realInputOffsets[i] = decodingState.inputOffsets[validIndexes[i]];
-    }
-
-    // Call to decode API
-    try {
-      // Send new message
-      localOpaeCoderConnector.sendMessageByteArray (
-                                decodingState,
-                                realInputs,
-                                realInputOffsets,
-                                erasurePattern,
-                                survivalPattern
-                              );
-
-      // Wait for response
-      localOpaeCoderConnector.receiveMessageReplyByteArray ( decodingState );
-    }
-    catch ( JMSException e ) {
-      throw new IOException("Caught JMSException during decoding" + e);
-    }
+    // // Call to decode API
+    // try {
+    //   // Send new message and wait for response
+    //   localOpaeCoderConnector.callToVFProxy (
+    //                             erasurePattern,
+    //                             survivalPattern,
+    //                             realInputs // byte [] survivedCells
+    //                           );
+    // }
+    // catch ( JMSException e ) {
+    //   throw new IOException("Caught JMSException during decoding" + e);
+    // }
     
   }
 

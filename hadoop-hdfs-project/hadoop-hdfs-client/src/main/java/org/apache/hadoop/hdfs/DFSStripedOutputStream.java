@@ -221,9 +221,13 @@ public class DFSStripedOutputStream extends DFSOutputStream
       }
 
       buffers = new ByteBuffer[numAllBlocks];
+      LOG.info("cellSize = " + cellSize );
       for (int i = 0; i < buffers.length; i++) {
         buffers[i] = BUFFER_POOL.getBuffer(useDirectBuffer(), cellSize);
+        LOG.warn("buffers[" + i + "].limit() = " + buffers[i].limit() );
         buffers[i].limit(cellSize);
+        LOG.warn("buffers[" + i + "].limit() = " + buffers[i].limit() );
+        LOG.warn("buffers[" + i + "].capacity() = " + buffers[i].capacity() );
       }
     }
 
@@ -555,6 +559,13 @@ public class DFSStripedOutputStream extends DFSOutputStream
     final int index = getCurrentIndex();
     final int pos = cellBuffers.addTo(index, bytes, offset, len);
     final boolean cellFull = pos == cellSize;
+
+    // LOG.warn("[writeChunk] offset " + offset );
+    // LOG.warn("[writeChunk] len " + len );
+    // LOG.warn("[writeChunk] ckoff " + ckoff );
+    // LOG.warn("[writeChunk] cklen " + cklen );
+    // LOG.warn("[writeChunk] pos " + pos );
+    // LOG.warn("[writeChunk] index " + index );
 
     if (currentBlockGroup == null || shouldEndBlockGroup()) {
       // the incoming data should belong to a new block. Allocate a new block.
@@ -1140,6 +1151,8 @@ public class DFSStripedOutputStream extends DFSOutputStream
     encode(encoder, numDataBlocks, buffers);
     for (int i = numDataBlocks; i < numAllBlocks; i++) {
       writeParity(i, buffers[i], cellBuffers.getChecksumArray(i));
+      LOG.info("[writeParityCells] buffers[" + i + "].limit() = " + buffers[i].limit() );
+      LOG.info("[writeParityCells] buffers[" + i + "].capacity() = " + buffers[i].capacity() );
     }
     cellBuffers.clear();
   }

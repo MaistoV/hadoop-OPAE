@@ -161,8 +161,10 @@ public final class CoderUtil {
    * @return the first valid input
    */
   static <T> T findFirstValidInput(T[] inputs) {
+    int i = 0;
     for (T input : inputs) {
       if (input != null) {
+        // System.out.println("[findFirstValidInput] Found valid input " + (i++) );
         return input;
       }
     }

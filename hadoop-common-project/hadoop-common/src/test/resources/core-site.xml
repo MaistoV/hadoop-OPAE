@@ -23,6 +23,18 @@
 
 <configuration>
 
+  <property>
+    <name>hadoop.tags.system</name>
+    <!-- <value>YARN,HDFS,NAMENODE,DATANODE,REQUIRED,SECURITY,KERBEROS,PERFORMANCE,CLIENT -->
+    <!-- <value>${hadoop.tags.system},VFP</value> -->
+    <value>VFP,${hadoop.tags.system}</value>
+    <!-- <value>VFP,YARN,HDFS,NAMENODE,DATANODE,REQUIRED,SECURITY,KERBEROS,PERFORMANCE,CLIENT</value> -->
+    <!-- <value>VFP</value> -->
+    <description>
+      A comma-separated list of system tags to group related properties together.
+    </description>
+  </property>
+
 
 <property>
   <name>hadoop.tmp.dir</name>

@@ -37,7 +37,15 @@ class ByteBufferEncodingState extends EncodingState {
     this.encoder = encoder;
     ByteBuffer validInput = CoderUtil.findFirstValidInput(inputs);
     this.encodeLength = validInput.remaining();
+    System.out.println("[ByteBufferEncodingState] validInput.position() = " + validInput.position() );
+    System.out.println("[ByteBufferEncodingState] validInput.limit() = " + validInput.limit() );
+    System.out.println("[ByteBufferEncodingState] validInput.capacity() = " + validInput.capacity() );
+    if ( validInput.hasArray() ) {
+      System.out.println("[ByteBufferEncodingState] validInput.array().length = " + validInput.array().length );
+    }
+    System.out.println("[ByteBufferEncodingState] encodeLength = " + encodeLength );
     this.usingDirectBuffer = validInput.isDirect();
+    System.out.println("[ByteBufferEncodingState] usingDirectBuffer = " + usingDirectBuffer );
     this.inputs = inputs;
     this.outputs = outputs;
 

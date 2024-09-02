@@ -5,6 +5,8 @@ import java.util.Hashtable;
 import java.util.Arrays;
 import org.apache.commons.lang3.NotImplementedException;
 import java.lang.IllegalStateException;
+import java.nio.ByteBuffer;
+import java.util.concurrent.TimeoutException;
 
 // JMS 
 import javax.jms.JMSException;
@@ -21,6 +23,10 @@ import javax.naming.Context;
 import javax.naming.InitialContext;
 import javax.naming.NamingException;
 
+// Logger
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.hadoop.io.erasurecode.rawcoder.OpaeVFPClientConfiguration;
 
 // Import vfproxy
@@ -32,6 +38,7 @@ import vfproxy.VFProxyClient;
 //  This is a dirty workaround, **meant to be removed in the future**. 
 //  This current solution requires snippets of code below to be be tested externally.
 public class OpaeCoderConnector {
+    private static final Logger LOG = LoggerFactory.getLogger(OpaeRSRawDecoder.class);
 
     // RS[K:P] configurations
     private final int numDataUnits;
@@ -133,7 +140,7 @@ public class OpaeCoderConnector {
                             int survivalPattern,
                             int bufferLength,
                             byte[] survivedCells
-                    ) throws JMSException {
+                    ) throws JMSException, TimeoutException {
         // Return data
         byte[] byteReplyData = null;
 
@@ -163,26 +170,59 @@ public class OpaeCoderConnector {
                             int erasurePattern,
                             int survivalPattern,
                             ByteBufferEncodingState encodingState
-                        ) throws JMSException {
-        // TODO
-        throw new NotImplementedException();
-
-        // // Return data
-        // byte [] byteReplyData = null;
-
-        // // Serialize input data
-        // int bufferLength = encodingState.encodeLength;
-
-        // // // Call raw version
-        // byteReplyData = callToVFProxy ( 
-        //                 erasurePattern,
-        //                 survivalPattern,
-        //                 bufferLength,
-        //                 serializedByteArrayInputs
+                        ) throws JMSException, TimeoutException {
+        // Convert to ByteArray
+        // ByteArrayEncodingState byteArrayEncodingState = encodingState.convertToByteArrayState();
+        // Serialize input data
+        int bufferLength = encodingState.encodeLength;
+        byte[] serializedByteArrayInputs = new byte [ numDataUnits * bufferLength ];
+        int i = 0;
+        for ( ByteBuffer bb : encodingState.outputs ) {
+            int offset = (i++) * bufferLength;
+            // bb.rewind(); // test
+            bb.get(
+                    serializedByteArrayInputs,  // byte[] dst
+                    offset,                     // int offset
+                    bufferLength                // int length
+                );
+        }
+        // serializeArrayOfArraysToArray ( 
+        //                 byteArrayEncodingState.inputs,  // Source   byte [][]
+        //                 serializedByteArrayInputs,      // Dest     byte []
+        //                 numDataUnits,                   // numBuffers
+        //                 bufferLength                    // Length of buffers
         //             );
 
-        // // (?)Deserialize output data
-        // // ...
+        // Call raw version
+        byte [] byteReplyData = callToVFProxy ( 
+                        erasurePattern,
+                        survivalPattern,
+                        bufferLength,
+                        serializedByteArrayInputs
+                    );
+
+        // Deserialize output data
+        // deserializeArrayToArrayOfArrays ( 
+        //     byteReplyData,                  // Source     byte [] 
+        //     byteArrayEncodingState.outputs, // Dest       byte [][]
+        //     encodingState.outputs.length,   // Num buffers
+        //     bufferLength                    // Length of single buffer
+        // );
+        // Re-convert into ByteBuffer
+        i = 0;
+        LOG.warn("bufferLength " + bufferLength);
+        for ( ByteBuffer bb : encodingState.outputs ) {
+            int offset = (i++) * bufferLength;
+            LOG.warn("offset " + offset);
+            LOG.warn("bb.limit() " + bb.limit());
+            LOG.warn("bb.capacity() " + bb.capacity());
+            bb.rewind();
+            bb.put(
+                byteReplyData,  // byte[] src
+                offset,         // int offset
+                bb.limit()      // int length
+            );
+        }
     }
 
     // TODO: figure out outputOffsets
@@ -191,17 +231,16 @@ public class OpaeCoderConnector {
                             int erasurePattern,
                             int survivalPattern,
                             ByteArrayEncodingState encodingState
-                        ) throws JMSException {
+                        ) throws JMSException, TimeoutException {
         // Return data
         byte [] byteReplyData = null;
 
         // Serialize input data
-        // int numDataUnits = encodingState.inputs.length;
         int bufferLength = encodingState.encodeLength;
         byte[] serializedByteArrayInputs = new byte [ numDataUnits * bufferLength ];
         serializeArrayOfArraysToArray ( 
-                        encodingState.inputs,       // Source
-                        serializedByteArrayInputs,  // Dest
+                        encodingState.inputs,       // Source byte [][]
+                        serializedByteArrayInputs,  // Dest   byte []
                         numDataUnits,               // numBuffers
                         bufferLength                // Length of buffers
                     );
@@ -214,10 +253,10 @@ public class OpaeCoderConnector {
                         serializedByteArrayInputs
                     );
 
-        // (?)Deserialize output data
+        // Deserialize output data
         deserializeArrayToArrayOfArrays ( 
-                                byteReplyData,                // Source
-                                encodingState.outputs,        // Dest
+                                byteReplyData,                // Source byte []
+                                encodingState.outputs,        // Dest   byte [][]
                                 encodingState.outputs.length, // Num buffers
                                 bufferLength                  // Length of single buffer
                             );        
@@ -234,10 +273,6 @@ public class OpaeCoderConnector {
                                     int         bufferLength
                                 ) {
         for ( int i = 0; i < numBuffers; i++ ) {
-            // for ( int j = 0; j < bufferLength; j++ ) {
-            //     destByteArray[ (i * bufferLength ) + j ] = sourceByteArray[i][j];
-            // }
-            // TODO: untested
             // Copy bufferLength bytes
             System.arraycopy (
                 // src
@@ -262,10 +297,6 @@ public class OpaeCoderConnector {
                                     int         bufferLength
                                 ) {
         for ( int i = 0; i < numBuffers; i++ ) {
-            // for ( int j = 0; j < bufferLength; j++ ) {
-            //     destByteArray[i][j] = sourceByteArray[ (i * bufferLength) + j ];
-            // }
-            // TODO: untested
             // Copy bufferLength bytes
             System.arraycopy (
                 // src

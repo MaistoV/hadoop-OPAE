@@ -228,7 +228,7 @@ public class OpaeRSRawEncoder extends RawErasureEncoder {
   // NOTE: "DirectBuffer" refers to ByteBuffer
   public boolean preferDirectBuffer() {
       // TODO: revert to true once implemented callToVFProxy for ByteBuffer
-      return true;
-      // return false;
+      // return true;
+      return false;
   }
 }
